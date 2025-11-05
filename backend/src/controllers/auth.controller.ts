@@ -25,7 +25,7 @@ export const signin = async (req: Request, res: Response) => {
 
     // Find user by username
     const user = await prisma.user.findUnique({
-      where: { username }
+      where: { username },
     });
 
     // Check if user exists
@@ -46,7 +46,8 @@ export const signin = async (req: Request, res: Response) => {
     const { password: _, ...userWithoutPassword } = user;
     
     res.status(200).json({
-      user: userWithoutPassword,
+      id: userWithoutPassword.id,
+      username : userWithoutPassword.username,
       token
     });
   } catch (error) {
