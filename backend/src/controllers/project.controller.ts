@@ -166,8 +166,7 @@ export const getProject = async (req: AuthenticatedRequest, res: Response) => {
         }
 
         // 2. List files from R2
-        const prefix = `projects/${projectId}/`;
-        const files = await listFiles(prefix);
+        const files = await listFiles(projectId);
         console.log("files", files);
 
         // 3. Return the response

@@ -18,7 +18,6 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/project', projectRoutes);
 app.use('/api/projects', projectRoutes);
 
 // Health check endpoint

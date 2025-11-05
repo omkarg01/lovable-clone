@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { X } from 'lucide-react';
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+import ENV from '@/environment/environment';
 
 interface SignupDialogProps {
   isOpen: boolean;
@@ -22,7 +22,7 @@ export default function SignupDialog({ isOpen, onClose, onSwitchToLogin }: Signu
     setIsLoading(true);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/signup`, {
+      const response = await fetch(`${ENV.API_BASE_URL}/api/auth/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -9,7 +9,7 @@ const LLM_URL = 'https://openrouter.ai/api/v1/chat/completions';
 // Function to generate a project name from a user query using LLM
 export async function suggestProjectName(query: string): Promise<string> {
   if (!query) return 'untitled-project';
-  
+
   try {
     const response = await fetch(LLM_URL, {
       method: 'POST',
@@ -54,10 +54,10 @@ export async function suggestProjectName(query: string): Promise<string> {
 
     const data = await response.json();
     let name = data.choices?.[0]?.message?.content?.trim() || '';
-    
+
     // Ensure the name is not empty
     if (!name) throw new Error('Failed to generate project name');
-    
+
     return name;
   } catch (error) {
     console.error('Error generating project name:', error);
@@ -69,7 +69,7 @@ export async function suggestProjectName(query: string): Promise<string> {
 // Fallback function to generate a project name from a user query
 function generateProjectName(query: string): string {
   if (!query) return 'untitled-project';
-  
+
   // Remove special characters and extra spaces, convert to lowercase
   let name = query
     .toLowerCase()
@@ -89,7 +89,7 @@ function generateProjectName(query: string): string {
 
   // Add a random 4-char alphanumeric suffix for uniqueness
   const suffix = Math.random().toString(36).substring(2, 6);
-  
+
   return name ? `${name}-${suffix}` : `project-${suffix}`;
 }
 
@@ -176,7 +176,7 @@ function parseFileOperations(aiResponse: string): FileOperation[] {
 
   // Try to clean the response first
   let cleanResponse = aiResponse.trim();
-  
+
   // Log the first 500 characters of the response for debugging
   console.log('AI Response (first 500 chars):', cleanResponse.substring(0, 500));
 
@@ -199,27 +199,27 @@ function parseFileOperations(aiResponse: string): FileOperation[] {
           throw new Error('Direct JSON parse failed');
         }
       },
-      
+
       // Strategy 2: Extract JSON array
       () => {
         const jsonMatch = cleanResponse.match(/\[\s*\{[\s\S]*\}\s*\]/s);
         if (!jsonMatch) throw new Error('No JSON array found');
         return JSON.parse(jsonMatch[0]);
       },
-      
+
       // Strategy 3: Extract single JSON object
       () => {
         const objMatch = cleanResponse.match(/\{[\s\S]*\}/s);
         if (!objMatch) throw new Error('No JSON object found');
         return JSON.parse(objMatch[0]);
       },
-      
+
       // Strategy 4: Try to fix common JSON issues
       () => {
         try {
           // Make a copy of the response for debugging
           const responseCopy = cleanResponse;
-          
+
           // Try to fix common JSON issues like trailing commas, single quotes, etc.
           let fixedJson = responseCopy
             // Remove any control characters that might break JSON parsing
@@ -246,7 +246,7 @@ function parseFileOperations(aiResponse: string): FileOperation[] {
 
           // Try to parse the fixed JSON
           const result = JSON.parse(fixedJson);
-          
+
           // Log success for debugging
           console.log('Successfully parsed JSON after fixes');
           return result;
@@ -257,8 +257,8 @@ function parseFileOperations(aiResponse: string): FileOperation[] {
             originalLength: cleanResponse.length,
             // Only log a portion to avoid huge logs
             originalStart: cleanResponse.substring(0, 200),
-            originalEnd: cleanResponse.length > 200 
-              ? cleanResponse.substring(cleanResponse.length - 200) 
+            originalEnd: cleanResponse.length > 200
+              ? cleanResponse.substring(cleanResponse.length - 200)
               : ''
           });
           throw new Error('Failed to parse after JSON fixes');
@@ -286,7 +286,7 @@ function parseFileOperations(aiResponse: string): FileOperation[] {
 
     // Normalize and validate the parsed data
     const operations = normalizeFileOperations(parsedData);
-    
+
     if (!Array.isArray(operations) || operations.length === 0) {
       throw new Error('No valid file operations found in the response');
     }
@@ -298,8 +298,8 @@ function parseFileOperations(aiResponse: string): FileOperation[] {
     console.error('Error parsing file operations:', {
       error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
-      input: cleanResponse.length > 500 
-        ? cleanResponse.substring(0, 500) + '... (truncated)' 
+      input: cleanResponse.length > 500
+        ? cleanResponse.substring(0, 500) + '... (truncated)'
         : cleanResponse
     });
 
@@ -321,7 +321,7 @@ function normalizeFileOperations(parsed: any): FileOperation[] {
   if (typeof parsed === 'string') {
     try {
       parsed = JSON.parse(parsed);
-    } catch (e : any) {
+    } catch (e: any) {
       throw new Error(`Failed to parse string input as JSON: ${e.message}`);
     }
   }
@@ -352,10 +352,10 @@ function normalizeFileOperations(parsed: any): FileOperation[] {
 
         // Normalize the location/path
         let location = op.path || op.location || op.file || op.name || `file${index}.txt`;
-        
+
         // Ensure location is a string and doesn't contain any directory traversal
         location = String(location).replace(/\.\.\//g, '').replace(/\/\//g, '/');
-        
+
         // Normalize content
         let content: string | undefined;
         if (op.content !== undefined) {
@@ -390,7 +390,7 @@ function normalizeFileOperations(parsed: any): FileOperation[] {
           throw new Error(`Invalid operation format at index ${index}: ${validationError instanceof Error ? validationError.message : String(validationError)}`);
         }
       }
-      
+
       // If we get here, we couldn't normalize the operation
       throw new Error(`Invalid operation format at index ${index}: Expected an object with 'operation' and 'location' properties`);
     }
@@ -461,8 +461,14 @@ async function executeFileOperations(
         continue;
       }
 
-      // Construct the full path for the operation
-      const fullPath = `${projectRoot}/${op.location.replace(/^\/+/, '')}`.replace(/\/\//g, '/');
+      let fullPath = op.location.replace(/^\/+/, '');
+      // If the path doesn't start with the project name, prepend it
+      if (!fullPath.startsWith(projectName)) {
+        fullPath = `${projectRoot}/${fullPath}`;
+      } else {
+        fullPath = `projects/${projectId}/${fullPath}`;
+      }
+      fullPath = fullPath.replace(/\/\//g, '/');
 
       switch (op.operation) {
         case 'createFile':
@@ -588,7 +594,7 @@ export async function generateAndUploadProjectFiles(
   projectId: string,
   prompt: string,
   projectName?: string,
-  isNewProject: boolean = false 
+  isNewProject: boolean = false
 ): Promise<ProjectGenerationResult> {
   let sandbox: any = null;
 
@@ -620,12 +626,11 @@ export async function generateAndUploadProjectFiles(
           { role: 'system', content: SYSTEM_PROMPT },
           {
             role: 'user',
-            content: isNewProject 
+            content: isNewProject
               ? `Create a new project with the following requirements:\n\n${processedPrompt}\n\n` +
-                `Project name: ${projectName || 'untitled-project'}\n` +
-                `Please provide the project structure and files in JSON format as specified in the system prompt.`
+              `Please provide the project structure and files in JSON format as specified in the system prompt.`
               : `Modify the existing project with the following requirements:\n\n${processedPrompt}\n\n` +
-                `Please provide the updated project structure and files in JSON format as specified in the system prompt.`
+              `Please provide the updated project structure and files in JSON format as specified in the system prompt.`
           }
         ],
         temperature: 0.7,

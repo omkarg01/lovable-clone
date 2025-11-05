@@ -33,13 +33,14 @@ export const r2 = new S3Client(s3Config);
 
 export async function listFiles(projectId: string): Promise<string[]> {
     try {
-        const prefix = `projects/${projectId}/`;
+        const prefix = `projects/${projectId}`;
         const command = new ListObjectsV2Command({
             Bucket,
             Prefix: prefix,
         });
 
         const response = await r2.send(command);
+        console.log("response", response);
 
         if (!response.Contents) return [];
 

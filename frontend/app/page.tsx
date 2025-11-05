@@ -3,6 +3,7 @@ import React from 'react';
 import { Search, Filter } from 'lucide-react';
 import ProjectCard from './components/ProjectCard';
 import PromptInput from './components/PromptInput';
+import Navbar from './components/Navbar';
 
 export default function Home() {
   const projects = [
@@ -64,6 +65,7 @@ export default function Home() {
 
   return (
     <main className="text-white">
+      <Navbar />
       {/* Hero Section with Prompt Input */}
       <section 
         className="relative min-h-screen flex items-center justify-center px-4 py-12"
