@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createConversation, createProject, getFile, getProject, getProjects } from '../controllers/project.controller';
+import { createConversation, createProject, getFile, getProject, getProjects, getProjectConversations } from '../controllers/project.controller';
 import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -16,5 +16,8 @@ router.get('/:projectId', authenticate, getProject);
 router.get('/:projectId/file', authenticate, getFile);
 
 router.post('/conversation/:projectId', authenticate, createConversation);
+
+// GET /api/projects/:projectId/conversations - Get all conversations for a project
+router.get('/conversation/:projectId', authenticate, getProjectConversations);
 
 export default router;

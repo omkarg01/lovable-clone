@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { MessageSquare, Menu, X, Search, Bell, Settings, User, Code as CodeIcon, Globe, Code, Folder, File, ChevronRight, ChevronDown } from 'lucide-react';
+import { MessageSquare, Menu, X, Search, Bell, Settings, User, Code as CodeIcon, Globe, Code, Folder, File, ChevronRight, ChevronDown, ThumbsUp, ThumbsDown, Copy } from 'lucide-react';
 import ENV from '@/environment/environment';
 
 // Dynamically import Monaco Editor with SSR disabled
@@ -24,65 +24,27 @@ type FileType = {
 
 const initialFiles: FileType[] = [];
 
-// Mock file structure
-// const initialFiles: FileType[] = [
-//     {
-//         id: '1',
-//         name: 'src',
-//         type: 'folder',
-//         children: [
-//             {
-//                 id: '2',
-//                 name: 'components',
-//                 type: 'folder',
-//                 children: [
-//                     {
-//                         id: '3',
-//                         name: 'Button.tsx',
-//                         type: 'file',
-//                         language: 'typescript',
-//                         content: 'import React from "react";\n\ninterface ButtonProps {\n  children: React.ReactNode;\n  onClick?: () => void;\n  variant?: "primary" | "secondary";\n}\n\nexport const Button: React.FC<ButtonProps> = ({\n  children,\n  onClick,\n  variant = "primary",\n}) => {\n  return (\n    <button\n      onClick={onClick}\n      className={`px-4 py-2 rounded ${\n        variant === "primary"\n          ? "bg-blue-500 text-white"\n          : "bg-gray-200 text-gray-800"\n      }`}\n    >\n      {children}\n    </button>\n  );\n};'
-//                     },
-//                     {
-//                         id: '4',
-//                         name: 'Card.tsx',
-//                         type: 'file',
-//                         language: 'typescript',
-//                         content: 'import React from "react";\n\ninterface CardProps {\n  title: string;\n  children: React.ReactNode;\n}\n\nexport const Card: React.FC<CardProps> = ({ title, children }) => {\n  return (\n    <div className="bg-white rounded-lg shadow p-4">\n      <h3 className="text-lg font-semibold mb-2">{title}</h3>\n      <div className="text-gray-700">{children}</div>\n    </div>\n  );\n};'
-//                     }
-//                 ]
-//             },
-//             {
-//                 id: '5',
-//                 name: 'App.tsx',
-//                 type: 'file',
-//                 language: 'typescript',
-//                 content: `import React from "react";\nimport { Button } from "./components/Button";\nimport { Card } from "./components/Card";\n\nconst App: React.FC = () => {\n  return (\n    <div className="min-h-screen bg-gray-100 p-8">\n      <Card title="Welcome to My App">\n        <p className="mb-4">This is a sample React application.</p>\n        <Button onClick={() => alert('Button clicked!')}>\n          Click me!\n        </Button>\n      </Card>\n    </div>\n  );\n};\n\nexport default App;`
-//             }
-//         ]
-//     },
-//     {
-//         id: '6',
-//         name: 'package.json',
-//         type: 'file',
-//         language: 'json',
-//         content: '{\n  "name": "my-app",\n  "version": "0.1.0",\n  "private": true,\n  "dependencies": {\n    "react": "^18.2.0",\n    "react-dom": "^18.2.0",\n    "typescript": "^4.9.5"\n  },\n  "scripts": {\n    "start": "react-scripts start",\n    "build": "react-scripts build",\n    "test": "react-scripts test",\n    "eject": "react-scripts eject"\n  }\n}'
-//     }
-// ];
-
 type Message = {
     id: string;
+    role: 'user' | 'assistant';
     content: string;
-    isUser: boolean;
-    timestamp: Date;
+    createdOn: string;
+    assistantResponses: Array<{
+        id: string;
+        role: 'user' | 'assistant';
+        content: string;
+        createdOn: string;
+    }>;
 };
 
 export default function ProjectPage() {
     const { projectId } = useParams();
+    const router = useRouter();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [project, setProject] = useState<any>(null);
+    const [isLoadingConversations, setIsLoadingConversations] = useState(true);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [sidebarWidth, setSidebarWidth] = useState(320); // Default width (20rem = 320px)
     const [isResizing, setIsResizing] = useState(false);
@@ -91,6 +53,48 @@ export default function ProjectPage() {
     const [selectedFile, setSelectedFile] = useState<FileType | null>(null);
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['1']));
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const [sandboxUrl, setSandboxUrl] = useState<string | undefined>(undefined);
+
+    // Fetch conversations when projectId changes
+    useEffect(() => {
+        const sandboxUrl = localStorage.getItem('sandboxUrl');
+        if (sandboxUrl) {
+            setSandboxUrl(sandboxUrl);
+        }
+        const fetchConversations = async () => {
+            if (!projectId) return;
+
+            setIsLoadingConversations(true);
+            const user = localStorage.getItem('user');
+            if (!user) return;
+            try {
+                const response = await fetch(`${ENV.API_BASE_URL}/api/projects/conversation/${projectId}`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${JSON.parse(user).token}`
+                        }
+                    }
+                );
+                if (!response.ok) {
+                    throw new Error('Failed to fetch conversations');
+                }
+                const data = await response.json();
+                setMessages(data.data || []);
+            } catch (error) {
+                console.error('Error fetching conversations:', error);
+            } finally {
+                setIsLoadingConversations(false);
+            }
+        };
+
+        fetchConversations();
+
+        return () => {
+            localStorage.removeItem('sandboxUrl');
+            localStorage.removeItem('projectId');
+        };
+    }, [projectId]);
+
 
     const toggleFolder = (folderId: string) => {
         setExpandedFolders(prev => {
@@ -112,7 +116,7 @@ export default function ProjectPage() {
 
         // Set the selected file immediately for better UX
         setSelectedFile(file);
-        
+
         try {
             const user = localStorage.getItem('user');
             if (!user) throw new Error('User not authenticated');
@@ -141,9 +145,9 @@ export default function ProjectPage() {
             });
 
             if (!response.ok) throw new Error('Failed to load file content');
-            
+
             const data = await response.json();
-            
+
             // Update the file with its content
             setFiles(prevFiles => {
                 const updateFileContent = (files: FileType[]): FileType[] => {
@@ -159,10 +163,10 @@ export default function ProjectPage() {
                 };
                 return updateFileContent(prevFiles);
             });
-            
+
             // Update the selected file with the content
             setSelectedFile(prev => prev ? { ...prev, content: data.content } : null);
-            
+
         } catch (error) {
             console.error('Error loading file content:', error);
             // You might want to show an error message to the user here
@@ -232,15 +236,15 @@ export default function ProjectPage() {
     // Function to convert flat file paths to nested structure
     const buildFileTree = (files: string[]): FileType[] => {
         const root: FileType = { id: 'root', name: 'project', type: 'folder', children: [] };
-        
+
         files.forEach(filePath => {
             const parts = filePath.split('/').filter(Boolean);
             let current = root;
-            
+
             parts.forEach((part, index) => {
                 const isFile = index === parts.length - 1;
                 const existingNode = current.children?.find(child => child.name === part);
-                
+
                 if (existingNode) {
                     current = existingNode;
                 } else {
@@ -252,17 +256,17 @@ export default function ProjectPage() {
                         content: '', // We'll load this when the file is selected
                         children: isFile ? undefined : []
                     };
-                    
+
                     if (!current.children) {
                         current.children = [];
                     }
-                    
+
                     current.children.push(newNode);
                     current = newNode;
                 }
             });
         });
-        
+
         return root.children || [];
     };
 
@@ -292,7 +296,7 @@ export default function ProjectPage() {
             'dockerfile': 'dockerfile',
             'gitignore': 'gitignore'
         };
-        
+
         return languageMap[extension || ''] || 'plaintext';
     };
 
@@ -313,12 +317,12 @@ export default function ProjectPage() {
                 if (response.ok) {
                     const data = await response.json();
                     setProject(data.project);
-                    
+
                     // Build file tree from the flat file list
                     if (data.project?.files) {
                         const fileTree = buildFileTree(data.project.files);
                         setFiles(fileTree);
-                        
+
                         // Expand the root folder by default
                         if (fileTree.length > 0) {
                             setExpandedFolders(new Set([fileTree[0].id]));
@@ -334,59 +338,59 @@ export default function ProjectPage() {
     }, [projectId]);
 
     // ✅ 3. Send message handler (unchanged)
-    const handleSendMessage = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!input.trim() || !projectId) return;
+    // const handleSendMessage = async (e: React.FormEvent) => {
+    //     e.preventDefault();
+    //     if (!input.trim() || !projectId) return;
 
-        const userMessage: Message = {
-            id: Date.now().toString(),
-            content: input,
-            isUser: true,
-            timestamp: new Date()
-        };
+    //     const userMessage: Message = {
+    //         id: Date.now().toString(),
+    //         content: input,
+    //         role: 'user',
+    //         createdOn: new Date().toISOString()
+    //     };
 
-        setMessages(prev => [...prev, userMessage]);
-        setInput('');
-        setIsLoading(true);
+    //     setMessages(prev => [...prev, userMessage]);
+    //     setInput('');
+    //     setIsLoading(true);
 
-        try {
-            const user = localStorage.getItem('user');
-            if (!user) throw new Error('User not authenticated');
+    //     try {
+    //         const user = localStorage.getItem('user');
+    //         if (!user) throw new Error('User not authenticated');
 
-            const token = JSON.parse(user).token;
-            const response = await fetch(`${ENV.API_BASE_URL}/api/projects/${projectId}/chat`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ message: input })
-            });
+    //         const token = JSON.parse(user).token;
+    //         const response = await fetch(`${ENV.API_BASE_URL}/api/projects/${projectId}/chat`, {
+    //             method: 'POST',
+    //             headers: {
+    //                 'Content-Type': 'application/json',
+    //                 'Authorization': `Bearer ${token}`
+    //             },
+    //             body: JSON.stringify({ message: input })
+    //         });
 
-            if (!response.ok) throw new Error('Failed to get response');
+    //         if (!response.ok) throw new Error('Failed to get response');
 
-            const data = await response.json();
+    //         const data = await response.json();
 
-            const botMessage: Message = {
-                id: Date.now().toString(),
-                content: data.response,
-                isUser: false,
-                timestamp: new Date()
-            };
+    //         const assistantResponse: Message = {
+    //             id: Date.now().toString(),
+    //             content: data.response,
+    //             role: 'assistant',
+    //             createdOn: new Date().toISOString(),
+    //         };
 
-            setMessages(prev => [...prev, botMessage]);
-        } catch (error) {
-            console.error('Error sending message:', error);
-            setMessages(prev => [...prev, {
-                id: Date.now().toString(),
-                content: 'Sorry, there was an error processing your message.',
-                isUser: false,
-                timestamp: new Date()
-            }]);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    //         setMessages(prev => [...prev, assistantResponse]);
+    //     } catch (error) {
+    //         console.error('Error sending message:', error);
+    //         setMessages(prev => [...prev, {
+    //             id: Date.now().toString(),
+    //             content: 'Sorry, there was an error processing your message.',
+    //             role: 'assistant',
+    //             createdOn: new Date().toISOString()
+    //         }]);
+    //     } finally {
+    //         setIsLoading(false);
+    //     }
+    // };
 
     // ✅ 4. Auto scroll
     useEffect(() => {
@@ -412,44 +416,75 @@ export default function ProjectPage() {
                     maxWidth: '50vw',
                     resize: 'horizontal',
                     overflow: 'hidden',
+
                 }}
             >
                 <div className="p-4 border-b border-gray-700 flex justify-between items-center">
-                    <h1 className="text-xl font-bold truncate">{project?.name || 'Project'}</h1>
+                    <h1 className="cursor-pointer text-xl font-bold truncate" onClick={() => router.push('/')}> {project?.name || 'Project'}</h1>
                     <button
                         onClick={() => setIsSidebarOpen(false)}
-                        className="md:hidden p-1 hover:bg-gray-700 rounded"
+                        className="md:hidden p-1 hover:bg-red-700 rounded"
                     >
                         <X className="h-5 w-5" />
                     </button>
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {messages.map((message) => (
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-900">
+                    {messages.map((message: Message) => (
                         <div
                             key={message.id}
-                            className={`p-3 rounded-lg ${message.isUser ? 'bg-gray-700 ml-4' : 'bg-gray-800 mr-4'}`}
+                            className={`flex flex-center flex-col`}
                         >
-                            <p className="text-sm">{message.content}</p>
-                            <p className="text-xs text-gray-400 mt-1">
-                                {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </p>
+                            <div
+                                className='max-w-auto p-4 rounded-xl shadow-md text-sm leading-relaxed bg-slate-800 border-blue-800 border-2 text-white'
+                            >
+                                {/* User or assistant main message */}
+                                <p className="whitespace-pre-wrap">{message.content}</p>
+
+                            </div>
+                            <div>
+                                {/* Assistant responses (if any) */}
+                                {message.assistantResponses?.length > 0 && (
+                                    <div className="mt-3 space-y-2 border-gray-700 pt-2">
+                                        {message.assistantResponses.map((each, i) => (
+                                            <p key={i} className="text-gray-300 whitespace-pre-wrap">
+                                                {each.content}
+                                            </p>
+                                        ))}
+                                    </div>
+                                )}
+                                {/* actions like and dislike */}
+                                <div className='flex gap-1 mt-2'>
+                                    <button className='cursor-pointer p-2 rounded hover:bg-gray-600'>
+                                        <ThumbsUp className='h-3 w-3' />
+                                    </button>
+                                    <button className='cursor-pointer p-2 rounded hover:bg-gray-600'>
+                                        <ThumbsDown className='h-3 w-3' />
+                                    </button>
+                                    <button className='cursor-pointer p-2 rounded hover:bg-gray-600'>
+                                        <Copy className='h-3 w-3' />
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     ))}
+
+                    {/* Auto-scroll anchor */}
                     <div ref={messagesEndRef} />
                 </div>
+
 
                 {/* Resize Handle with improved visibility */}
                 <div
                     onMouseDown={handleMouseDown}
-                    className={`absolute right-0 top-0 h-full w-1.5 cursor-col-resize transition-colors ${isResizing ? 'bg-blue-500' : 'bg-transparent hover:bg-gray-600'}`}
+                    className={`absolute right-0 top-0 h-full w-0.5 cursor-col-resize transition-colors ${isResizing ? 'bg-blue-500' : 'bg-transparent hover:bg-gray-600'}`}
                 />
 
                 {/* Chat Input */}
                 <div className="p-4 border-t border-gray-700">
                     <form
-                        onSubmit={handleSendMessage}
+                        // onSubmit={handleSendMessage}
                         className="relative"
                     >
                         <input
@@ -548,22 +583,14 @@ export default function ProjectPage() {
                                 </p>
                             </div>
                         ) : (
-                            <div className="max-w-4xl mx-auto p-6">
-                                {messages.map((message) => (
-                                    <div key={message.id} className={`flex ${message.isUser ? 'justify-end' : 'justify-start'} mb-4`}>
-                                        <div
-                                            className={`max-w-3xl rounded-lg px-4 py-3 ${message.isUser
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'bg-gray-700 text-gray-200 border border-gray-600'
-                                                }`}
-                                        >
-                                            <p className="whitespace-pre-wrap">{message.content}</p>
-                                            <div className={`text-xs mt-1 ${message.isUser ? 'text-blue-200' : 'text-gray-400'}`}>
-                                                {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
+                            <div className="w-full h-full p-5 border rounded-lg overflow-hidden">
+                                <iframe
+                                    src={sandboxUrl}
+                                    className="w-full h-full"
+                                    title="Live Preview"
+                                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                                    allowFullScreen
+                                />
                             </div>
                         )
                     ) : (
@@ -615,25 +642,6 @@ export default function ProjectPage() {
                             </div>
                         </div>
                     )}
-                    ) : (
-                    <div className="max-w-4xl mx-auto space-y-6">
-                        {messages.map((message) => (
-                            <div key={message.id} className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}>
-                                <div
-                                    className={`max-w-3xl rounded-lg px-4 py-3 ${message.isUser
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-gray-100 border border-gray-200 text-gray-800'
-                                        }`}
-                                >
-                                    <p className="whitespace-pre-wrap">{message.content}</p>
-                                    <div className={`text-xs mt-1 ${message.isUser ? 'text-blue-200' : 'text-gray-500'}`}>
-                                        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    )
                 </div>
             </div>
         </div>

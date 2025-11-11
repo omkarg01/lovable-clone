@@ -129,7 +129,7 @@ export default function LoginDialog({ isOpen, onClose, onSwitchToSignup, onLogin
           <button
             type="submit"
             disabled={isLoading}
-            className={`w-full bg-white hover:bg-white/90 text-black font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center ${
+            className={`cursor-pointer w-full bg-white hover:bg-white/90 text-black font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center ${
               isLoading ? 'opacity-70 cursor-not-allowed' : ''
             }`}
           >
@@ -144,7 +144,7 @@ export default function LoginDialog({ isOpen, onClose, onSwitchToSignup, onLogin
               onClose();
               onSwitchToSignup();
             }}
-            className="text-blue-400 hover:text-blue-300 font-medium focus:outline-none"
+            className="cursor-pointer text-blue-400 hover:text-blue-300 font-medium focus:outline-none"
           >
             Sign up
           </button>

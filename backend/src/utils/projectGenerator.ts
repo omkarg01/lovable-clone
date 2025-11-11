@@ -135,7 +135,8 @@ IMPORTANT:
 - Always include the full path in the 'location' field
 - For file content, use proper indentation and formatting
 - Include all necessary files for the project to work
-- Make sure to include a README.md with setup instructions`;
+- Make sure to include a README.md with setup instructions
+`;
 
 // Define TypeScript interfaces for better type safety
 interface ProjectFile {
@@ -437,7 +438,8 @@ function normalizePath(path: string): string {
 async function executeFileOperations(
   operations: FileOperation[],
   projectId: string,
-  projectName: string = 'untitled-project'
+  projectName: string = 'untitled-project',
+  sandbox: Sandbox
 ): Promise<{ files: ProjectFile[]; errors: string[] }> {
   const files: ProjectFile[] = [];
   const errors: string[] = [];
@@ -478,6 +480,10 @@ async function executeFileOperations(
           }
 
           try {
+            // ✅ Write file to sandbox
+            await sandbox.files.write(op.location, op.content);
+            console.log(`✅ [Sandbox] Created file: ${op.location}`);
+
             const createResult = await createFile.execute({
               location: fullPath,
               content: op.content
@@ -506,6 +512,10 @@ async function executeFileOperations(
           }
 
           try {
+            // ✅ Update file in sandbox
+            await sandbox.files.write(op.location, op.content);
+            console.log(`✅ [Sandbox] Updated file: ${op.location}`);
+
             const updateResult = await updateFile.execute({
               location: fullPath,
               content: op.content
@@ -534,6 +544,11 @@ async function executeFileOperations(
           }
 
           try {
+
+            // ✅ Delete from sandbox
+            await sandbox.files.remove(op.location);
+            console.log(`✅ [Sandbox] Deleted file: ${op.location}`);
+
             const deleteResult = await deleteFile.execute({
               location: fullPath
             });
@@ -555,6 +570,10 @@ async function executeFileOperations(
           }
 
           try {
+            // ✅ Read from sandbox
+            await sandbox.files.read(op.location);
+            console.log(`✅ [Sandbox] Read file: ${op.location}`);
+
             const readFileResult = await readFile.execute({
               location: fullPath
             });
@@ -606,10 +625,12 @@ export async function generateAndUploadProjectFiles(
     }
 
     // Create E2B sandbox
-    sandbox = await Sandbox.create('f9osur8wx7gur0n4hja6');
+    sandbox = await Sandbox.create('f9osur8wx7gur0n4hja6', {
+      timeoutMs: 3600000  // 1 hour
+    });
     await new Promise(resolve => setTimeout(resolve, 5000));
 
-    const host = sandbox.getHost(5173);
+    const host = sandbox.getHost(5175);
     const sandboxUrl = `https://${host}`;
     console.log('Sandbox URL:', sandboxUrl);
 
@@ -654,7 +675,57 @@ export async function generateAndUploadProjectFiles(
     }
 
     // Execute file operations
-    const { files, errors } = await executeFileOperations(operations, projectId, projectName);
+    const { files, errors } = await executeFileOperations(operations, projectId, projectName, sandbox);
+
+
+    const allFiles = await sandbox.files.list(`/home/user/${projectName}`, { recursive: true });
+    console.log('📁 Sandbox files:', allFiles);
+
+
+
+
+    // Clean up any global installations first
+    //   await sandbox.commands.run(`
+    //   cd /home/user/${projectName} &&
+    //   rm -rf node_modules package-lock.json &&AS`/* DS */
+    //   npm cache clean --force
+    // `);
+    // console package.json
+    const packageJson = await sandbox.files.read(`/home/user/${projectName}/package.json`);
+    console.log('Package.json:', packageJson);
+
+    // const processes = await sandbox.process.list();
+    // console.log('Running processes:', processes);
+
+    const result = await sandbox.commands.run(`cd /home/user/${projectName} && npm install && npm run dev -- --host 0.0.0.0 --port 5175`, {
+      timeoutMs: 0,
+      background: true,
+      onStdout: (data: any) => {
+        console.log('stdout:', data);
+      },
+      onStderr: (data: any) => {
+        console.error('stderr:', data);
+      },
+      env: {
+        SKIP_PREFLIGHT_CHECK: "true"
+      }
+    });
+    console.log("Sandbox result:", result)
+
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // Start a background task to close the sandbox after 2 minutes
+    (async () => {
+      await delay(120000); // 2 minutes in milliseconds
+
+      try {
+        console.log('Auto-terminating sandbox...');
+        await sandbox.close();
+        console.log('Sandbox terminated successfully');
+      } catch (error) {
+        console.error('Error terminating sandbox:', error);
+      }
+    })();
 
     if (files.length === 0) {
       throw new Error('Failed to create any files. ' + (errors[0] || 'Unknown error'));

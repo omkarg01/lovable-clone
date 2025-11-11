@@ -58,6 +58,7 @@ export const signin = async (req: Request, res: Response) => {
 
 export const signup = async (req: Request, res: Response) => {
   try {
+    console.log("req.body", req.body);
     // Validate input using Zod schema
     const validationResult = signupSchema.safeParse(req.body);
     

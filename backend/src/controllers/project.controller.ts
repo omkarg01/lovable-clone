@@ -1,10 +1,14 @@
 import { Request, Response } from 'express';
 import z, { ZodIssue } from 'zod';
+
+interface MessageData {
+    content: string;
+    [key: string]: any;
+}
 import { createProjectSchema, type CreateProjectInput } from '../validations/project.validation';
 import prisma from '../lib/prisma';
 import { generateAndUploadProjectFiles, suggestProjectName } from '../utils/projectGenerator';
 import { getR2File, listFiles } from '../utils/r2';
-import { connect } from 'http2';
 
 // Extend Express Request type to include user
 type AuthenticatedRequest = Request & { user?: { id: string } };
@@ -35,7 +39,7 @@ export const createProject = async (req: Request, res: Response) => {
         const userQuery = initialPrompt;
 
         const projectName = await suggestProjectName(userQuery);
-        console.log("projectName", projectName);
+        // console.log("projectName", projectName);
 
         // First create the project
         const project = await prisma.project.create({
@@ -47,10 +51,11 @@ export const createProject = async (req: Request, res: Response) => {
 
         let assistantResponse = '';
         let generatedFiles = [];
+        let result = null;
 
         // Generate and upload files using LLM
         try {
-            const result = await generateAndUploadProjectFiles(project.id, userQuery, projectName, true);
+            result = await generateAndUploadProjectFiles(project.id, userQuery, projectName, true);
 
             if (result.success) {
                 assistantResponse = `Successfully generated ${result.fileCount} files. `;
@@ -100,6 +105,7 @@ export const createProject = async (req: Request, res: Response) => {
             project,
             filesGenerated: generatedFiles.length,
             assistantResponse,
+            sandboxUrl: result?.sandboxUrl,
             links: {
                 view: `/api/projects/${project.id}`,
                 files: `/api/projects/${project.id}/files`
@@ -214,6 +220,76 @@ export const getFile = async (
 
 
 
+export const getProjectConversations = async (req: Request, res: Response) => {
+    try {
+        const { projectId } = req.params;
+        const userId = (req as any).user?.id;
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        // Check if project exists and user has access
+        const project = await prisma.project.findUnique({
+            where: { id: projectId },
+            select: { userId: true }
+        });
+
+        if (!project) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
+        if (project.userId !== userId) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        // Get the chat and its messages for the project
+        const chat = await prisma.chat.findUnique({
+            where: { projectId },
+            include: {
+                messages: {
+                    orderBy: { createdOn: 'asc' },
+                    include: {
+                        assistantResponses: {
+                            orderBy: { createdOn: 'asc' }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!chat) {
+            return res.json({ data: [] });
+        }
+
+        // Format the response
+        const conversations = chat.messages.flatMap(message => {
+            const messageData = message.data as MessageData | null;
+            const conversation = {
+                id: message.id,
+                role: message.role,
+                content: messageData?.content || '',
+                createdOn: message.createdOn,
+                assistantResponses: message.assistantResponses.map(res => {
+                    const responseData = res.data as MessageData | null;
+                    return {
+                        id: res.id,
+                        role: res.role,
+                        content: responseData?.content || '',
+                        createdOn: res.createdOn
+                    };
+                })
+            };
+            return [conversation];
+        });
+
+        return res.json({ data: conversations });
+    } catch (error) {
+        console.error('Error fetching conversations:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
 export const createConversation = async (req: Request, res: Response) => {
     try {
         const { projectId } = req.params;
@@ -267,7 +343,7 @@ export const createConversation = async (req: Request, res: Response) => {
                 // console.log("recentMessages", recentMessages);
 
                 const projectStructure = await listFiles(projectId)
-                console.log("projectStructure", projectStructure);
+                // console.log("projectStructure", projectStructure);
 
                 // Format the prompt with conversation history
                 const context = recentMessages
@@ -295,7 +371,7 @@ export const createConversation = async (req: Request, res: Response) => {
                     })
                     .join('\n');
 
-                console.log("context", context);
+                // console.log("context", context);
 
 
                 const enhancedPrompt = `
@@ -309,7 +385,7 @@ export const createConversation = async (req: Request, res: Response) => {
 
                     Assistant:`;
 
-                console.log("enhancedPrompt", enhancedPrompt);
+                // console.log("enhancedPrompt", enhancedPrompt);
 
 
                 // Use the project object we already have from the earlier query
@@ -416,3 +492,4 @@ export const createConversation = async (req: Request, res: Response) => {
         return res.status(500).json({ error: 'Internal server error' });
     }
 };
+

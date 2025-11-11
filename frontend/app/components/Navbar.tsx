@@ -57,13 +57,13 @@ export default function Navbar() {
                             />
                         </Link>
                         <div className="ml-10">
-                            <Link href="/docs" className="text-white/80 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                            <Link href="/docs" className="cursor-pointer text-white/80 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                                 Documentation
                             </Link>
-                            <Link href="/examples" className="text-white/80 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                            <Link href="/examples" className="cursor-pointer text-white/80 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                                 Examples
                             </Link>
-                            <Link href="/blog" className="text-white/80 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                            <Link href="/blog" className="cursor-pointer text-white/80 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                                 Blog
                             </Link>
                         </div>
@@ -77,7 +77,7 @@ export default function Navbar() {
                                 </span>
                                 <button
                                   onClick={handleLogout}
-                                  className="flex items-center space-x-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+                                  className="cursor-pointer flex items-center space-x-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
                                   title="Log out"
                                 >
                                   <LogOut size={16} />

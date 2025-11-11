@@ -3,48 +3,59 @@
 import { useState } from 'react';
 import ENV from '@/environment/environment';
 import { Send, Wand2, Image as ImageIcon, Code } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+
 
 export default function PromptInput() {
+  const router = useRouter();
+
   const [prompt, setPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
+    router.push(`/projects/creating`);
+
     e.preventDefault();
     if (!prompt.trim()) return;
-    
+
     setIsLoading(true);
     setError(null);
-    
-    try {
-      const user : any = localStorage.getItem('user') || '';
-      const token = JSON.parse(user).token;
-      const response = await fetch(`${ENV.API_BASE_URL}/api/projects`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` // localstorage has user object not token
-        },
-        body: JSON.stringify({ initialPrompt: prompt }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create project');
+
+    (async () => {
+      try {
+        const user: any = localStorage.getItem('user') || '';
+        const token = JSON.parse(user).token;
+        // create project API
+        const response = await fetch(`${ENV.API_BASE_URL}/api/projects`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}` // localstorage has user object not token
+          },
+          body: JSON.stringify({ initialPrompt: prompt }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create project');
+        }
+
+        const data = await response.json();
+        console.log('Project created:', data);
+        setPrompt('');
+        // You might want to redirect or update the UI with the new project
+        localStorage.setItem('sandboxUrl', data.sandboxUrl);
+        localStorage.setItem('projectId', data.project.id);
+      } catch (err) {
+        console.error('Error creating project:', err);
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
+        setIsLoading(false);
       }
-      
-      const data = await response.json();
-      console.log('Project created:', data);
-      setPrompt('');
-      // You might want to redirect or update the UI with the new project
-      // router.push(`/project/${data.id}`);
-      
-    } catch (err) {
-      console.error('Error creating project:', err);
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setIsLoading(false);
-    }
+    })()
+
+
   };
 
   return (
@@ -84,36 +95,35 @@ export default function PromptInput() {
               }
             `}</style>
           </div>
-          
+
           {/* Error Message */}
           {error && (
             <div className="text-red-400 text-sm mb-3 px-4 py-2 bg-red-900/30 rounded-lg">
               {error}
             </div>
           )}
-          
+
           {/* Action Buttons Section */}
           <div className="flex items-center justify-between border-t border-white/10 pt-3">
             <div className="flex items-center space-x-1 text-gray-400">
-              <button type="button" className="p-2 rounded-lg hover:bg-white/10 hover:text-white transition-colors">
+              <button type="button" className="cursor-pointer p-2 rounded-lg hover:bg-white/10 hover:text-white transition-colors">
                 <Wand2 className="h-5 w-5" />
               </button>
-              <button type="button" className="p-2 rounded-lg hover:bg-white/10 hover:text-white transition-colors">
+              <button type="button" className="cursor-pointer p-2 rounded-lg hover:bg-white/10 hover:text-white transition-colors">
                 <ImageIcon className="h-5 w-5" />
               </button>
-              <button type="button" className="p-2 rounded-lg hover:bg-white/10 hover:text-white transition-colors">
+              <button type="button" className="cursor-pointer p-2 rounded-lg hover:bg-white/10 hover:text-white transition-colors">
                 <Code className="h-5 w-5" />
               </button>
             </div>
-            
+
             <button
               type="submit"
               disabled={!prompt.trim() || isLoading}
-              className={`p-2.5 rounded-full transition-colors ${
-                !prompt.trim() || isLoading
+              className={`cursor-pointer p-2.5 rounded-full transition-colors ${!prompt.trim() || isLoading
                   ? 'text-gray-500 cursor-not-allowed'
                   : 'text-white hover:bg-white/10 bg-white/5'
-              }`}
+                }`}
             >
               <Send className="h-6 w-6" />
             </button>
