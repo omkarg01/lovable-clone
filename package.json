@@ -1,0 +1,10 @@
+{
+    "name": "fullstack-app",
+    "scripts": {
+        "build": "cd frontend && npm install && npm run build && cd ../backend && npm install",
+        "start": "node server.js"
+    },
+    "engines": {
+        "node": ">=18"
+    }
+}
