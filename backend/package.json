@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "type": "commonjs",
+  "type": "module",
   "scripts": {
-    "start": "ts-node index.ts",
+    "start": "node index.js",
     "build": "tsc",
-    "dev": "ts-node-dev --respawn index.ts"
+    "dev": "index.js"
   },
   "keywords": [],
   "author": "",
