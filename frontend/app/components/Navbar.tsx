@@ -18,9 +18,13 @@ export default function Navbar() {
 
   useEffect(() => {
     // Check for existing token in localStorage on component mount
-    const user = localStorage.getItem('user');
-    if (user) {
-      setUser(JSON.parse(user));
+    const stored = localStorage.getItem("user");
+    if (!stored) return;
+    try {
+      const parsed = JSON.parse(stored);
+      setUser(parsed);
+    } catch (err) {
+      console.error("Invalid user JSON", err);
     }
   }, []);
 
@@ -42,71 +46,71 @@ export default function Navbar() {
 
   return (
     <>
-        <nav className="w-full bg-white/10 backdrop-blur-md border-b border-white/10">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center justify-between h-16">
-                    <div className="flex items-center">
-                        <Link href="/" className="flex items-center">
-                            <Image
-                                src="/logo.svg"
-                                alt="Lovable Logo"
-                                width={150}
-                                height={30}
-                                className="h-6 w-auto"
-                                priority
-                            />
-                        </Link>
-                        <div className="ml-10">
-                            <Link href="/docs" className="cursor-pointer text-white/80 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                                Documentation
-                            </Link>
-                            <Link href="/examples" className="cursor-pointer text-white/80 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                                Examples
-                            </Link>
-                            <Link href="/blog" className="cursor-pointer text-white/80 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                                Blog
-                            </Link>
-                        </div>
-                    </div>
-                    <div className="hidden md:block">
-                        <div className="flex items-center space-x-4">
-                            {user.username ? (
-                              <div className="flex items-center space-x-4">
-                                <span className="text-white text-sm font-medium">
-                                  {user.username}
-                                </span>
-                                <button
-                                  onClick={handleLogout}
-                                  className="cursor-pointer flex items-center space-x-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
-                                  title="Log out"
-                                >
-                                  <LogOut size={16} />
-                                  <span>Logout</span>
-                                </button>
-                              </div>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => setIsLoginOpen(true)}
-                                  className="bg-black/20 cursor-pointer border border-white/20 px-4 py-1.5 rounded-md text-white hover:bg-white/10 text-sm font-medium transition-colors"
-                                >
-                                  Log in
-                                </button>
-                                <button
-                                  onClick={() => setIsSignupOpen(true)}
-                                  className="bg-white cursor-pointer hover:bg-white/90 text-black px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                                >
-                                  Get started
-                                </button>
-                              </>
-                            )}
-                        </div>
-                    </div>
-                </div>
+      <nav className="w-full bg-white/10 backdrop-blur-md border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <Link href="/" className="flex items-center">
+                <Image
+                  src="/logo.svg"
+                  alt="Lovable Logo"
+                  width={150}
+                  height={30}
+                  className="h-6 w-auto"
+                  priority
+                />
+              </Link>
+              <div className="ml-10">
+                <Link href="/docs" className="cursor-pointer text-white/80 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                  Documentation
+                </Link>
+                <Link href="/examples" className="cursor-pointer text-white/80 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                  Examples
+                </Link>
+                <Link href="/blog" className="cursor-pointer text-white/80 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                  Blog
+                </Link>
+              </div>
             </div>
-        </nav>
-      
-      <SignupDialog 
+            <div className="hidden md:block">
+              <div className="flex items-center space-x-4">
+                {user.username ? (
+                  <div className="flex items-center space-x-4">
+                    <span className="text-white text-sm font-medium">
+                      {user.username}
+                    </span>
+                    <button
+                      onClick={handleLogout}
+                      className="cursor-pointer flex items-center space-x-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+                      title="Log out"
+                    >
+                      <LogOut size={16} />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setIsLoginOpen(true)}
+                      className="bg-black/20 cursor-pointer border border-white/20 px-4 py-1.5 rounded-md text-white hover:bg-white/10 text-sm font-medium transition-colors"
+                    >
+                      Log in
+                    </button>
+                    <button
+                      onClick={() => setIsSignupOpen(true)}
+                      className="bg-white cursor-pointer hover:bg-white/90 text-black px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Get started
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <SignupDialog
         isOpen={isSignupOpen}
         onClose={() => setIsSignupOpen(false)}
         onSwitchToLogin={() => {
@@ -114,8 +118,8 @@ export default function Navbar() {
           setIsLoginOpen(true);
         }}
       />
-      
-      <LoginDialog 
+
+      <LoginDialog
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
         onSwitchToSignup={() => {
@@ -124,7 +128,7 @@ export default function Navbar() {
         }}
         onLoginSuccess={handleLoginSuccess}
       />
-      
+
     </>
-    );
+  );
 }

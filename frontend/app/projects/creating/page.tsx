@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-const page = () => {
+const CreatingPage = () => {
     const router = useRouter();
 
     useEffect(() => {
@@ -53,4 +53,4 @@ const page = () => {
     )
 }
 
-export default page
+export default CreatingPage
