@@ -2,12 +2,12 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "index.ts",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
+    "start": "node index.ts",
     "build": "tsc",
-    "dev": "index.js"
+    "dev": "ts-node index.ts"
   },
   "keywords": [],
   "author": "",
