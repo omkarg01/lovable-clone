@@ -10,7 +10,7 @@ const port = process.env.PORT || 3000;
 
 // ✅ Serve backend API routes
 import backend from "./backend/dist/index.js"; // or your backend main file
-app.use("/api", backend);
+app.use("/", backend);
 
 // ✅ Serve Next.js frontend
 import next from "next";
