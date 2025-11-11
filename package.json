@@ -5,6 +5,7 @@
         "start": "node server.js"
     },
     "engines": {
-        "node": ">=18"
+        "node": ">=18",
+        "express": "^5.1.0"
     }
 }
