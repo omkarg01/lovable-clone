@@ -9,7 +9,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // ✅ Serve backend API routes
-import backend from "./backend/index.js"; // or your backend main file
+import backend from "./backend/dist/index.js"; // or your backend main file
 app.use("/api", backend);
 
 // ✅ Serve Next.js frontend

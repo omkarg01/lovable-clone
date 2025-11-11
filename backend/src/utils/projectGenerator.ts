@@ -1,7 +1,7 @@
 import { Sandbox } from '@e2b/code-interpreter';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { z } from 'zod';
-import { createFile, updateFile, deleteFile, readFile } from '../../tools';
+import { createFile, updateFile, deleteFile, readFile } from '../../tools/index.js';
 
 
 const LLM_URL = 'https://openrouter.ai/api/v1/chat/completions';

@@ -8,7 +8,7 @@ interface MessageData {
 import { createProjectSchema, type CreateProjectInput } from '../validations/project.validation';
 import prisma from '../lib/prisma';
 import { generateAndUploadProjectFiles, suggestProjectName } from '../utils/projectGenerator';
-import { getR2File, listFiles } from '../utils/r2';
+import { getR2File, listFiles } from '../utils/r2.js';
 
 // Extend Express Request type to include user
 type AuthenticatedRequest = Request & { user?: { id: string } };
