@@ -12,8 +12,8 @@
     "rootDir": ".",
     "strictNullChecks": true,
     "allowSyntheticDefaultImports": true,
-    "verbatimModuleSyntax": false
+    "verbatimModuleSyntax": false,
   },
-  "include": ["**/*.ts"],
+  "include": ["**/*.ts", "index.js"],
   "exclude": ["node_modules"]
 }
