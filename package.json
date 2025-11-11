@@ -4,8 +4,11 @@
         "build": "cd frontend && npm install && npm run build && cd ../backend && npm install",
         "start": "node server.js"
     },
+    "dependencies": {
+        "express": "^4.19.2",
+        "next": "^15.1.6"
+    },
     "engines": {
-        "node": ">=18",
-        "express": "^5.1.0"
+        "node": ">=18"
     }
 }
