@@ -8,12 +8,12 @@
     "skipLibCheck": true,
     "moduleResolution": "node",
     "resolveJsonModule": true,
-    "outDir": "./dist",
+    "outDir": "dist",
     "rootDir": ".",
     "strictNullChecks": true,
     "allowSyntheticDefaultImports": true,
-    "verbatimModuleSyntax": false,
+    "verbatimModuleSyntax": false
   },
-  "include": ["**/*.ts", "index.js"],
+  "include": ["**/*.ts"],
   "exclude": ["node_modules"]
 }

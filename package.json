@@ -2,7 +2,7 @@
     "name": "fullstack-app",
     "type": "module",
     "scripts": {
-        "build": "npm install && cd frontend && npm install && npm run build && cd ../backend && npm install",
+        "build": "npm install && cd frontend && npm install && npm run build && cd ../backend && npm install && npm run build",
         "start": "node server.js"
     },
     "dependencies": {
