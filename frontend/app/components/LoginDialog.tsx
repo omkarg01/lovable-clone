@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import ENV from '@/environment/environment';
 
 interface LoginDialogProps {
   isOpen: boolean;
@@ -23,7 +22,7 @@ export default function LoginDialog({ isOpen, onClose, onSwitchToSignup, onLogin
     setIsLoading(true);
     
     try {
-      const response = await fetch(`${ENV.API_BASE_URL}/api/auth/signin`, {
+      const response = await fetch(`${process.env.API_BASE_URL}/api/auth/signin`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

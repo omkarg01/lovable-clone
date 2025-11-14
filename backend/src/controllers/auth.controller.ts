@@ -1,9 +1,9 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
-import { generateToken } from '../utils/jwt';
-import { signupSchema, signinSchema, type SignupInput, type SigninInput } from '../validations/auth.validation';
+import { generateToken } from '../utils/jwt.js';
+import { signupSchema, signinSchema, type SignupInput, type SigninInput } from '../validations/auth.validation.js';
 import { ZodIssue } from 'zod';
-import prisma from '../lib/prisma';
+import prisma from '../lib/prisma.js';
 
 export const signin = async (req: Request, res: Response) => {
   try {

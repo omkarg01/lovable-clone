@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { uploadToR2 } from "../src/utils/r2";
+import { uploadToR2 } from "../src/utils/r2.js";
 
 // Helper function to get content type based on file extension
 function getContentType(filePath: string): string {

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import ENV from '@/environment/environment';
 import { Send, Wand2, Image as ImageIcon, Code } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -27,7 +26,7 @@ export default function PromptInput() {
         const user: any = localStorage.getItem('user') || '';
         const token = JSON.parse(user).token;
         // create project API
-        const response = await fetch(`${ENV.API_BASE_URL}/api/projects`, {
+        const response = await fetch(`${process.env.API_BASE_URL}/api/projects`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

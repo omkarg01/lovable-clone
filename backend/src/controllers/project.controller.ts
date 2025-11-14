@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
 import z, { ZodIssue } from 'zod';
 
-import { createProjectSchema, type CreateProjectInput } from '../validations/project.validation';
-import prisma from '../lib/prisma';
-import { generateAndUploadProjectFiles, suggestProjectName } from '../utils/projectGenerator';
-import { getR2File, listFiles } from '../utils/r2';
+import { createProjectSchema, type CreateProjectInput } from '../validations/project.validation.js';
+import prisma from '../lib/prisma.js';
+import { generateAndUploadProjectFiles, suggestProjectName } from '../utils/projectGenerator.js';
+import { getR2File, listFiles } from '../utils/r2.js';
 
 interface MessageData {
     content: string;

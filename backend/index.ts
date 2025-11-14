@@ -1,13 +1,13 @@
 import express from "express";
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { streamText } from 'ai';
-import { SYSTEM_PROMPT } from "./prompt";
-import { createFile, updateFile, deleteFile, readFile } from "./tools/index";
+import { SYSTEM_PROMPT } from "./prompt.js";
+import { createFile, updateFile, deleteFile, readFile } from "./tools/index.js";
 import dotenv from 'dotenv';
 import { Sandbox } from '@e2b/code-interpreter'
 import cors from 'cors';
-import authRoutes from './src/routes/auth.routes';
-import projectRoutes from './src/routes/project.routes';
+import authRoutes from './src/routes/auth.routes.js';
+import projectRoutes from './src/routes/project.routes.js';
 
 dotenv.config();
 const app = express();
@@ -17,8 +17,11 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/projects', projectRoutes);
+app.get("/test-auth", (req, res) => {
+  res.json({ working: true });
+});
+app.use('/auth', authRoutes);
+app.use('/projects', projectRoutes);
 
 // Health check endpoint
 app.get("/", (req, res) => {

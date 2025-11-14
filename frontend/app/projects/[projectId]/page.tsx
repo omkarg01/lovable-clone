@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { MessageSquare, Menu, X, Search, Bell, Settings, User, Code as CodeIcon, Globe, Code, Folder, File, ChevronRight, ChevronDown, ThumbsUp, ThumbsDown, Copy } from 'lucide-react';
-import ENV from '@/environment/environment';
 
 // Dynamically import Monaco Editor with SSR disabled
 const MonacoEditor = dynamic(
@@ -68,7 +67,7 @@ export default function ProjectPage() {
             const user = localStorage.getItem('user');
             if (!user) return;
             try {
-                const response = await fetch(`${ENV.API_BASE_URL}/api/projects/conversation/${projectId}`,
+                const response = await fetch(`${process.env.API_BASE_URL}/api/projects/conversation/${projectId}`,
                     {
                         headers: {
                             'Authorization': `Bearer ${JSON.parse(user).token}`
@@ -138,7 +137,7 @@ export default function ProjectPage() {
             if (!fullPath) throw new Error('Could not determine file path');
 
             const token = JSON.parse(user).token;
-            const response = await fetch(`${ENV.API_BASE_URL}/api/projects/${projectId}/file?path=${encodeURIComponent(fullPath)}`, {
+            const response = await fetch(`${process.env.API_BASE_URL}/api/projects/${projectId}/file?path=${encodeURIComponent(fullPath)}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -308,7 +307,7 @@ export default function ProjectPage() {
                 if (!user) return;
 
                 const token = JSON.parse(user).token;
-                const response = await fetch(`${ENV.API_BASE_URL}/api/projects/${projectId}`, {
+                const response = await fetch(`${process.env.API_BASE_URL}/api/projects/${projectId}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
