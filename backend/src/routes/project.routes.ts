@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { createConversation, createProject, getFile, getProject, getProjects, getProjectConversations } from '../controllers/project.controller.js';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { createConversation, createProject, getFile, getProject, getProjects, getProjectConversations } from '../controllers/project.controller';
+import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
 

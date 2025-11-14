@@ -1,13 +1,13 @@
 import express from "express";
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { streamText } from 'ai';
-import { SYSTEM_PROMPT } from "./prompt.js";
-import { createFile, updateFile, deleteFile, readFile } from "./tools/index.js";
+import { SYSTEM_PROMPT } from "./prompt";
+import { createFile, updateFile, deleteFile, readFile } from "./tools/index";
 import dotenv from 'dotenv';
 import { Sandbox } from '@e2b/code-interpreter'
 import cors from 'cors';
-import authRoutes from './src/routes/auth.routes.js';
-import projectRoutes from './src/routes/project.routes.js';
+import authRoutes from './src/routes/auth.routes';
+import projectRoutes from './src/routes/project.routes';
 
 dotenv.config();
 const app = express();
