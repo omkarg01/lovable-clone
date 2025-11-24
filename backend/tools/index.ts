@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { uploadToR2 } from "../src/utils/r2.js";
+import { uploadToR2, getR2File, deleteFromR2 } from "../src/utils/r2.js";
 
 // Helper function to get content type based on file extension
 function getContentType(filePath: string): string {
@@ -82,13 +82,12 @@ export const deleteFile = {
   }),
   execute: async ({ location }: { location: string }) => {
     try {
-      // Note: You'll need to implement deleteObject in your R2 client
-      // and then call it here
+      await deleteFromR2(location);
       return {
         success: true,
         message: `File deleted: ${location}`
       };
-    } catch (error : any    ) {
+    } catch (error: any) {
       console.error('Error deleting file:', error);
       return {
         success: false,
@@ -105,15 +104,21 @@ export const readFile = {
   }),
   execute: async ({ location }: { location: string }) => {
     try {
-      // Note: You'll need to implement getObject in your R2 client
-      // and then call it here
+      const content = await getR2File(location);
       return {
         success: true,
-        content: 'File content would be here',
+        content: content,
         exists: true
       };
-    } catch (error : any) {
+    } catch (error: any) {
       console.error('Error reading file:', error);
+      if (error.message && error.message.includes('File not found')) {
+        return {
+          success: false,
+          exists: false,
+          message: error.message
+        };
+      }
       return {
         success: false,
         exists: false,

@@ -34,13 +34,16 @@ model User {
 }
 
 model Project {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  title       String
-  createdAt   DateTime? @default(now())
-  updatedAt   DateTime? @updatedAt
-  chat        Chat?
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  title         String
+  sandboxId     String?
+  sandboxUrl    String?
+  sandboxStatus String?  @default("active")
+  createdAt     DateTime? @default(now())
+  updatedAt     DateTime? @updatedAt
+  chat          Chat?
 }
 
 model Chat {

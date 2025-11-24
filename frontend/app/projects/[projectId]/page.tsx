@@ -11,30 +11,8 @@ const MonacoEditor = dynamic(
     { ssr: false }
 );
 
-// File type definition
-type FileType = {
-    id: string;
-    name: string;
-    type: 'file' | 'folder';
-    language?: string;
-    content?: string;
-    children?: FileType[];
-};
-
 const initialFiles: FileType[] = [];
 
-type Message = {
-    id: string;
-    role: 'user' | 'assistant';
-    content: string;
-    createdOn: string;
-    assistantResponses: Array<{
-        id: string;
-        role: 'user' | 'assistant';
-        content: string;
-        createdOn: string;
-    }>;
-};
 
 export default function ProjectPage() {
     const { projectId } = useParams();
@@ -52,14 +30,24 @@ export default function ProjectPage() {
     const [selectedFile, setSelectedFile] = useState<FileType | null>(null);
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['1']));
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const [sandboxUrl, setSandboxUrl] = useState<string | undefined>(undefined);
+    const [sandboxUrl, setSandboxUrl] = useState<string | undefined>("");
+    const [sandboxStatus, setSandboxStatus] = useState<string | undefined>(undefined);
+    const [isLoadingSandbox, setIsLoadingSandbox] = useState(false);
+    const [sandboxError, setSandboxError] = useState<string | null>(null);
+    const [expanded, setExpanded] = useState(false);
+    const [shouldShowMore, setShouldShowMore] = useState(false);
+    const contentRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (contentRef.current) {
+            // Check if content height is more than 8rem (128px)
+            setShouldShowMore(contentRef.current.scrollHeight > 128);
+        }
+    }, [messages]);
 
     // Fetch conversations when projectId changes
     useEffect(() => {
-        const sandboxUrl = localStorage.getItem('sandboxUrl');
-        if (sandboxUrl) {
-            setSandboxUrl(sandboxUrl);
-        }
+        // Remove localStorage dependency - we'll get sandboxUrl from API
         const fetchConversations = async () => {
             if (!projectId) return;
 
@@ -67,7 +55,7 @@ export default function ProjectPage() {
             const user = localStorage.getItem('user');
             if (!user) return;
             try {
-                const response = await fetch(`${process.env.API_BASE_URL}/api/projects/conversation/${projectId}`,
+                const response = await fetch(`${process.env.API_BASE_URL}/api/projects/${projectId}/conversations`,
                     {
                         headers: {
                             'Authorization': `Bearer ${JSON.parse(user).token}`
@@ -78,7 +66,18 @@ export default function ProjectPage() {
                     throw new Error('Failed to fetch conversations');
                 }
                 const data = await response.json();
-                setMessages(data.data || []);
+                setMessages(() => {
+                    // check if data.data is an array
+                    if (!Array.isArray(data.data)) {
+                        return [];
+                    }
+                    return data.data.map((message: Message) => {
+                        return {
+                            ...message,
+                            expanded: false
+                        }
+                    })
+                });
             } catch (error) {
                 console.error('Error fetching conversations:', error);
             } finally {
@@ -88,10 +87,10 @@ export default function ProjectPage() {
 
         fetchConversations();
 
-        return () => {
-            localStorage.removeItem('sandboxUrl');
-            localStorage.removeItem('projectId');
-        };
+        // return () => {
+        //     localStorage.removeItem('sandboxUrl');
+        //     localStorage.removeItem('projectId');
+        // };
     }, [projectId]);
 
 
@@ -302,6 +301,9 @@ export default function ProjectPage() {
     // 2. Fetch project details and files
     useEffect(() => {
         const fetchProject = async () => {
+            setIsLoadingSandbox(true);
+            setSandboxError(null);
+            
             try {
                 const user = localStorage.getItem('user');
                 if (!user) return;
@@ -317,6 +319,26 @@ export default function ProjectPage() {
                     const data = await response.json();
                     setProject(data.project);
 
+                    // Get sandboxUrl and sandboxStatus from API response (preferred over localStorage)
+                    if (data.project?.sandboxUrl) {
+                        setSandboxUrl(data.project.sandboxUrl);
+                        // Also update localStorage as fallback for old projects
+                        localStorage.setItem('sandboxUrl', data.project.sandboxUrl);
+                    } else {
+                        // Fallback to localStorage if not in database (for old projects)
+                        const storedUrl = localStorage.getItem('sandboxUrl');
+                        if (storedUrl) {
+                            setSandboxUrl(storedUrl);
+                        } else {
+                            setSandboxUrl(undefined);
+                        }
+                    }
+
+                    // Set sandbox status
+                    if (data.project?.sandboxStatus) {
+                        setSandboxStatus(data.project.sandboxStatus);
+                    }
+
                     // Build file tree from the flat file list
                     if (data.project?.files) {
                         const fileTree = buildFileTree(data.project.files);
@@ -327,9 +349,14 @@ export default function ProjectPage() {
                             setExpandedFolders(new Set([fileTree[0].id]));
                         }
                     }
+                } else {
+                    setSandboxError('Failed to fetch project information');
                 }
             } catch (error) {
                 console.error('Error fetching project:', error);
+                setSandboxError('Error loading project. Please try again.');
+            } finally {
+                setIsLoadingSandbox(false);
             }
         };
 
@@ -337,59 +364,68 @@ export default function ProjectPage() {
     }, [projectId]);
 
     // ✅ 3. Send message handler (unchanged)
-    // const handleSendMessage = async (e: React.FormEvent) => {
-    //     e.preventDefault();
-    //     if (!input.trim() || !projectId) return;
+    const handleSendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!input.trim() || !projectId) return;
 
-    //     const userMessage: Message = {
-    //         id: Date.now().toString(),
-    //         content: input,
-    //         role: 'user',
-    //         createdOn: new Date().toISOString()
-    //     };
+        const userMessage: Message = {
+            id: Date.now().toString(),
+            content: input,
+            role: 'user',
+            createdOn: new Date().toISOString(),
+            assistantResponses: [],
+            expanded: false
+        };
 
-    //     setMessages(prev => [...prev, userMessage]);
-    //     setInput('');
-    //     setIsLoading(true);
+        setMessages(prev => [...prev, userMessage]);
+        setInput('');
+        setIsLoading(true);
 
-    //     try {
-    //         const user = localStorage.getItem('user');
-    //         if (!user) throw new Error('User not authenticated');
+        try {
+            const user = localStorage.getItem('user');
+            if (!user) throw new Error('User not authenticated');
 
-    //         const token = JSON.parse(user).token;
-    //         const response = await fetch(`${ENV.API_BASE_URL}/api/projects/${projectId}/chat`, {
-    //             method: 'POST',
-    //             headers: {
-    //                 'Content-Type': 'application/json',
-    //                 'Authorization': `Bearer ${token}`
-    //             },
-    //             body: JSON.stringify({ message: input })
-    //         });
+            const token = JSON.parse(user).token;
+            const response = await fetch(`${process.env.API_BASE_URL}/api/projects/${projectId}/conversations`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ query: input })
+            });
 
-    //         if (!response.ok) throw new Error('Failed to get response');
+            if (!response.ok) throw new Error('Failed to get response');
 
-    //         const data = await response.json();
+            const data = await response.json();
 
-    //         const assistantResponse: Message = {
-    //             id: Date.now().toString(),
-    //             content: data.response,
-    //             role: 'assistant',
-    //             createdOn: new Date().toISOString(),
-    //         };
+            // userMessage which is use at the top of the get the last element and update the below assistantResponse
+            const assistantResponse: AssistantResponse = {
+                id: Date.now().toString(),
+                content: data.response,
+                role: 'assistant',
+                createdOn: new Date().toISOString(),
+            };
 
-    //         setMessages(prev => [...prev, assistantResponse]);
-    //     } catch (error) {
-    //         console.error('Error sending message:', error);
-    //         setMessages(prev => [...prev, {
-    //             id: Date.now().toString(),
-    //             content: 'Sorry, there was an error processing your message.',
-    //             role: 'assistant',
-    //             createdOn: new Date().toISOString()
-    //         }]);
-    //     } finally {
-    //         setIsLoading(false);
-    //     }
-    // };
+            // setMessages(prev => [...prev, assistantResponse]);
+            setMessages(prev => {
+                const updatedMessages = [...prev];
+                updatedMessages[updatedMessages.length - 1].assistantResponses.push(assistantResponse);
+                return updatedMessages;
+            });
+        } catch (error) {
+            console.error('Error sending message:', error);
+
+            // setMessages(prev => [...prev, {
+            //     id: Date.now().toString(),
+            //     content: 'Sorry, there was an error processing your message.',
+            //     role: 'assistant',
+            //     createdOn: new Date().toISOString()
+            // }]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     // ✅ 4. Auto scroll
     useEffect(() => {
@@ -430,31 +466,52 @@ export default function ProjectPage() {
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-900">
-                    {messages.map((message: Message) => (
+                    {messages.map((message: Message, index) => (
                         <div
                             key={message.id}
-                            className={`flex flex-center flex-col`}
+                            className={`flex flex-center flex-col my-6`}
                         >
-                            <div
-                                className='max-w-auto p-4 rounded-xl shadow-md text-sm leading-relaxed bg-slate-800 border-blue-800 border-2 text-white'
-                            >
+                            {/* User or assistant main message */}
+                            <div className="max-w-auto my-1 p-4 rounded-xl shadow-md text-sm leading-relaxed bg-slate-800 border-blue-800 border-2 text-white">
                                 {/* User or assistant main message */}
-                                <p className="whitespace-pre-wrap">{message.content}</p>
-
+                                <div
+                                    className={`whitespace-pre-wrap overflow-hidden transition-all duration-300 ${!expanded && 'max-h-32'}`}
+                                    ref={contentRef}
+                                >
+                                    {message.content}
+                                </div>
+                                {shouldShowMore && (
+                                    <button
+                                        onClick={() => setMessages((prev) => {
+                                            const updatedMessages = [...prev];
+                                            console.log("index", index);
+                                            console.log("messages", messages);
+                                            // not the last message the message on which user clicked
+                                            console.log("message.expanded", message.expanded);
+                                            updatedMessages[index].expanded = !message.expanded;
+                                            console.log("updatedMessages", updatedMessages);
+                                            return updatedMessages;
+                                        })}
+                                        className="text-blue-400 text-xs mt-2 hover:text-blue-300 focus:outline-none"
+                                    >
+                                        {message.expanded ? 'Show Less' : 'Show More'}
+                                    </button>
+                                )}
                             </div>
+
+                            {/* Assistant responses (if any) */}
                             <div>
-                                {/* Assistant responses (if any) */}
                                 {message.assistantResponses?.length > 0 && (
-                                    <div className="mt-3 space-y-2 border-gray-700 pt-2">
+                                    <div className="border-gray-700 pt-1">
                                         {message.assistantResponses.map((each, i) => (
-                                            <p key={i} className="text-gray-300 whitespace-pre-wrap">
+                                            <p key={i} className="text-gray-300 text-sm whitespace-pre-wrap">
                                                 {each.content}
                                             </p>
                                         ))}
                                     </div>
                                 )}
                                 {/* actions like and dislike */}
-                                <div className='flex gap-1 mt-2'>
+                                <div className='flex gap-1 mt-1'>
                                     <button className='cursor-pointer p-2 rounded hover:bg-gray-600'>
                                         <ThumbsUp className='h-3 w-3' />
                                     </button>
@@ -483,7 +540,7 @@ export default function ProjectPage() {
                 {/* Chat Input */}
                 <div className="p-4 border-t border-gray-700">
                     <form
-                        // onSubmit={handleSendMessage}
+                        onSubmit={handleSendMessage}
                         className="relative"
                     >
                         <input
@@ -573,7 +630,56 @@ export default function ProjectPage() {
                 {/* Main content */}
                 <div className="flex-1 overflow-y-auto bg-gray-800">
                     {activeView === 'preview' ? (
-                        messages.length === 0 ? (
+                        isLoadingSandbox ? (
+                            <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+                                <h2 className="text-xl font-semibold mb-2">Checking sandbox...</h2>
+                                <p className="text-center max-w-md text-sm">
+                                    {sandboxStatus === 'expired' ? 'Recreating sandbox...' : 'Connecting to sandbox...'}
+                                </p>
+                            </div>
+                        ) : sandboxError ? (
+                            <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                                <Globe className="h-16 w-16 mb-4 text-red-400" />
+                                <h2 className="text-2xl font-semibold mb-2 text-red-400">Preview Unavailable</h2>
+                                <p className="text-center max-w-md mb-4">
+                                    {sandboxError}
+                                </p>
+                                {sandboxStatus === 'expired' && (
+                                    <p className="text-center max-w-md text-sm text-gray-400 mb-4">
+                                        The sandbox is being recreated. Please refresh the page in a moment.
+                                    </p>
+                                )}
+                                <button
+                                    onClick={() => window.location.reload()}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                >
+                                    Retry
+                                </button>
+                            </div>
+                        ) : sandboxUrl ? (
+                            <div className="w-full h-full p-5 border rounded-lg overflow-hidden relative">
+                                <iframe
+                                    src={sandboxUrl}
+                                    className="w-full h-full border-0"
+                                    title="Live Preview"
+                                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                                    allowFullScreen
+                                    onError={(e) => {
+                                        console.error('Iframe load error:', e);
+                                        setSandboxError('Failed to load preview. The sandbox may be unavailable.');
+                                    }}
+                                    onLoad={() => {
+                                        setSandboxError(null);
+                                    }}
+                                />
+                                {sandboxStatus && (
+                                    <div className="absolute top-6 right-6 px-3 py-1 bg-gray-800 rounded-md text-xs text-gray-400 border border-gray-700 z-10">
+                                        Status: {sandboxStatus}
+                                    </div>
+                                )}
+                            </div>
+                        ) : messages.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-full text-gray-500">
                                 <MessageSquare className="h-16 w-16 mb-4 text-gray-300" />
                                 <h2 className="text-2xl font-semibold mb-2">Welcome to {project?.name || 'your project'}</h2>
@@ -582,14 +688,12 @@ export default function ProjectPage() {
                                 </p>
                             </div>
                         ) : (
-                            <div className="w-full h-full p-5 border rounded-lg overflow-hidden">
-                                <iframe
-                                    src={sandboxUrl}
-                                    className="w-full h-full"
-                                    title="Live Preview"
-                                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                                    allowFullScreen
-                                />
+                            <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                                <Globe className="h-16 w-16 mb-4 text-gray-300" />
+                                <h2 className="text-2xl font-semibold mb-2">Preview Unavailable</h2>
+                                <p className="text-center max-w-md">
+                                    Sandbox is being prepared. Please wait a moment and refresh.
+                                </p>
                             </div>
                         )
                     ) : (

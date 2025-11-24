@@ -1,46 +1,50 @@
-import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, ListObjectsV2Command, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
-import dotenv from 'dotenv';
-dotenv.config();
 
 
-// Create a custom credentials provider that only uses environment variables
-const customCredentialProvider = async () => {
-    return {
-        accessKeyId: process.env.CLOUDFLARE_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.CLOUDFLARE_SECRET_ACCESS_KEY!,
-    };
-};
+let r2: S3Client | null = null;
 
-const Bucket = process.env.CLOUDFLARE_BUCKET;
+function getR2Client() {
+    if (!r2) {
+        if (!process.env.CLOUDFLARE_ACCOUNT_ID || !process.env.CLOUDFLARE_ACCESS_KEY_ID || !process.env.CLOUDFLARE_SECRET_ACCESS_KEY) {
+            console.warn('Missing Cloudflare R2 configuration. File storage will be disabled.');
+            return null;
+        }
 
+        r2 = new S3Client({
+            region: 'auto',
+            endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+            credentials: {
+                accessKeyId: process.env.CLOUDFLARE_ACCESS_KEY_ID,
+                secretAccessKey: process.env.CLOUDFLARE_SECRET_ACCESS_KEY,
+            },
+            forcePathStyle: true,
+            tls: process.env.NODE_ENV === 'production',
+            apiVersion: '2006-03-01',
+            maxAttempts: 3,
+            retryMode: 'standard',
+        });
+    }
+    return r2;
+}
 
-// Configure the S3 client
-const s3Config: any = {
-    region: 'auto', // Must be 'auto' for Cloudflare R2
-    endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-    credentials: customCredentialProvider,
-    forcePathStyle: true, // Required for Cloudflare R2
-    tls: process.env.NODE_ENV === 'production',
-    apiVersion: '2006-03-01',
-    maxAttempts: 3,
-    retryMode: 'standard',
-    disableHostPrefix: true,
-};
-
-// Create a single instance of the S3 client
-export const r2 = new S3Client(s3Config);
 
 export async function listFiles(projectId: string): Promise<string[]> {
+    const r2 = getR2Client();
+    if (!r2 || !process.env.CLOUDFLARE_BUCKET) {
+        console.warn('R2 storage not configured - listFiles returning empty array');
+        return [];
+    }
+
     try {
         const prefix = `projects/${projectId}`;
         const command = new ListObjectsV2Command({
-            Bucket,
+            Bucket: process.env.CLOUDFLARE_BUCKET,
             Prefix: prefix,
         });
 
         const response = await r2.send(command);
-        console.log("response", response);
+        // console.log("response", response);
 
         if (!response.Contents) return [];
 
@@ -55,13 +59,18 @@ export async function listFiles(projectId: string): Promise<string[]> {
 }
 
 export async function uploadToR2(path: string, content: string, contentType: string = "text/plain") {
+    const r2 = getR2Client();
+    if (!r2 || !process.env.CLOUDFLARE_BUCKET) {
+        console.warn('R2 storage not configured - uploadToR2 returning error');
+        throw new Error('R2 storage not configured');
+    }
     const Key = path.startsWith('/') ? path.substring(1) : path; // Remove leading slash if present
 
     try {
         const parallelUploads3 = new Upload({
             client: r2,
             params: {
-                Bucket,
+                Bucket : process.env.CLOUDFLARE_BUCKET,
                 Key,
                 Body: content,
                 ContentType: contentType,
@@ -73,7 +82,7 @@ export async function uploadToR2(path: string, content: string, contentType: str
         // Return the URLs in the expected format
         return {
             publicUrl: `https://pub-0917616871ea40b0a02cefc9f9aac23d.r2.dev/${Key}`,
-            r2Url: `https://${Bucket}.${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com/${Key}`
+            r2Url: `https://${process.env.CLOUDFLARE_BUCKET}.${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com/${Key}`
         };
     } catch (error) {
         console.error('Error uploading to R2:', error);
@@ -81,18 +90,17 @@ export async function uploadToR2(path: string, content: string, contentType: str
     }
 }
 
-export async function getR2File(projectId: string, filePath: string): Promise<string> {
-    // Remove any leading slashes from the file path
-    const normalizedPath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
-    
-    // Construct the full key with projects/ prefix
-    const key = `projects/${projectId}/${normalizedPath}`;
-    
-    console.log('Fetching file with key:', key); // Debug log
-    
+export async function getR2File(path: string): Promise<string> {
+    const r2 = getR2Client();
+    if (!r2 || !process.env.CLOUDFLARE_BUCKET) {
+        console.warn('R2 storage not configured - getR2FileByPath returning error');
+        throw new Error('R2 storage not configured');
+    }
+    const Key = path.startsWith('/') ? path.substring(1) : path; // Remove leading slash if present
+    console.log("Key", Key);
     const command = new GetObjectCommand({
-        Bucket,
-        Key: key
+        Bucket: process.env.CLOUDFLARE_BUCKET,
+        Key
     });
 
     try {
@@ -104,8 +112,29 @@ export async function getR2File(projectId: string, filePath: string): Promise<st
     } catch (error: any) {
         console.error('Error getting file from R2:', error);
         if (error.name === 'NoSuchKey') {
-            throw new Error(`File not found: ${key}`);
+            throw new Error(`File not found: ${Key}`);
         }
         throw new Error(`Failed to get file: ${error.message}`);
+    }
+}
+
+export async function deleteFromR2(path: string) {
+    const r2 = getR2Client();
+    if (!r2 || !process.env.CLOUDFLARE_BUCKET) {
+        console.warn('R2 storage not configured - deleteFromR2 returning error');
+        throw new Error('R2 storage not configured');
+    }
+    const Key = path.startsWith('/') ? path.substring(1) : path; // Remove leading slash if present
+
+    try {
+        const command = new DeleteObjectCommand({
+            Bucket: process.env.CLOUDFLARE_BUCKET,
+            Key,
+        });
+
+        await r2.send(command);
+    } catch (error) {
+        console.error('Error deleting from R2:', error);
+        throw error;
     }
 }

@@ -43,12 +43,20 @@ export default function PromptInput() {
         const data = await response.json();
         console.log('Project created:', data);
         setPrompt('');
-        // You might want to redirect or update the UI with the new project
-        localStorage.setItem('sandboxUrl', data.sandboxUrl);
+        
+        // Store sandboxUrl and projectId in localStorage as fallback
+        if (data.sandboxUrl) {
+          localStorage.setItem('sandboxUrl', data.sandboxUrl);
+        }
         localStorage.setItem('projectId', data.project.id);
+        
+        // Redirect to project page after successful creation
+        router.push(`/projects/${data.project.id}`);
       } catch (err) {
         console.error('Error creating project:', err);
         setError(err instanceof Error ? err.message : 'An error occurred');
+        // Redirect back on error
+        router.push('/');
       } finally {
         setIsLoading(false);
       }

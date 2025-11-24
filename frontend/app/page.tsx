@@ -1,73 +1,40 @@
 'use client'
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Search, Filter } from 'lucide-react';
 import ProjectCard from './components/ProjectCard';
 import PromptInput from './components/PromptInput';
 import Navbar from './components/Navbar';
+import { communityProjects, getRandomAuthor, getRandomAvatar, getRandomDescription, getRandomProjectImage, getRandomTags } from './const';
+import { useAuth } from './context/AuthContext';
 
 export default function Home() {
-  const projects = [
-    {
-      title: 'Modern SaaS Dashboard',
-      description: 'A clean and responsive admin dashboard template for SaaS applications with dark mode support.',
-      imageUrl: '/image-1.webp',
-      tags: ['React', 'Tailwind CSS', 'Dashboard', 'SaaS'],
-      author: 'Alex Johnson',
-      authorAvatar: 'https://randomuser.me/api/portraits/men/32.jpg',
-      projectUrl: '#'
-    },
-    {
-      title: 'E-commerce Platform',
-      description: 'A full-featured e-commerce website with product listings, cart, and checkout flow.',
-      imageUrl: '/image-2.webp',
-      tags: ['Next.js', 'Stripe', 'E-commerce'],
-      author: 'Sarah Miller',
-      authorAvatar: 'https://randomuser.me/api/portraits/women/44.jpg',
-      projectUrl: '#'
-    },
-    {
-      title: 'Portfolio Website',
-      description: 'A minimalist portfolio website for designers and developers to showcase their work.',
-      imageUrl: '/image-3.webp',
-      tags: ['Portfolio', 'Minimalist', 'Responsive'],
-      author: 'James Wilson',
-      authorAvatar: 'https://randomuser.me/api/portraits/men/46.jpg',
-      projectUrl: '#'
-    },
-    {
-      title: 'Task Management App',
-      description: 'A collaborative task management application with real-time updates and team features.',
-      imageUrl: '/image-4.webp',
-      tags: ['React', 'Firebase', 'Real-time'],
-      author: 'Emma Davis',
-      authorAvatar: 'https://randomuser.me/api/portraits/women/63.jpg',
-      projectUrl: '#'
-    },
-    {
-      title: 'Fitness Tracker',
-      description: 'A mobile-first fitness tracking application with workout plans and progress analytics.',
-      imageUrl: '/image-5.webp',
-      tags: ['Mobile', 'Health', 'Analytics'],
-      author: 'Michael Chen',
-      authorAvatar: 'https://randomuser.me/api/portraits/men/22.jpg',
-      projectUrl: '#'
-    },
-    {
-      title: 'Recipe Sharing Platform',
-      description: 'A community-driven platform for sharing and discovering new recipes with advanced filtering.',
-      imageUrl: '/image-6.webp',
-      tags: ['Food', 'Community', 'Recipes'],
-      author: 'Olivia Martinez',
-      authorAvatar: 'https://randomuser.me/api/portraits/women/28.jpg',
-      projectUrl: '#'
-    }
-  ];
+  const [myProjects, setMyProjects] = useState<Project[]>([]);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const response = await fetch(`${process.env.API_BASE_URL}/api/projects`,
+          {
+            headers: {
+              "Authorization": `Bearer ${user?.token}`
+            }
+          }
+        );
+        const data = await response.json();
+        setMyProjects(data.projects);
+      } catch (error) {
+        console.error('Error fetching projects:', error);
+      }
+    };
+    fetchProjects();
+  }, [user]);
 
   return (
     <main className="text-white">
       <Navbar />
       {/* Hero Section with Prompt Input */}
-      <section 
+      <section
         className="relative min-h-screen flex items-center justify-center px-4 py-12"
         style={{
           backgroundImage: 'url(/background-image.webp)',
@@ -82,7 +49,7 @@ export default function Home() {
           paddingTop: '4rem' /* Add padding to push content down */
         }}
       >
-        <div 
+        <div
           className="absolute inset-0 bg-black/50 backdrop-blur-sm"
           style={{
             position: 'absolute',
@@ -95,7 +62,7 @@ export default function Home() {
         ></div>
         <div className="w-full max-w-4xl mx-auto text-center relative z-10" style={{ zIndex: 2 }}>
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-6 flex items-center justify-center gap-2">
-            Build something 
+            Build something
             <img
               src="/heart-icon.svg"
               alt="Heart"
@@ -114,7 +81,34 @@ export default function Home() {
 
       {/* Projects Section */}
       <section className="py-16 bg-gray-900">
+        {/* My Projects */}
         <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-white mb-4">MY PROJECTS</h2>
+          </div>
+
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {myProjects ? myProjects.map((project, index) => (
+              <ProjectCard
+                id={project.id}
+                key={index}
+                title={project.title}
+                description={project.description ? project.description : getRandomDescription()}
+                imageUrl={project.imageUrl ? project.imageUrl : getRandomProjectImage()}
+                tags={project.tags ? project.tags : getRandomTags()}
+                author={project.author ? project.author : getRandomAuthor()}
+                authorAvatar={project.authorAvatar ? project.authorAvatar : getRandomAvatar()}
+                projectUrl={`/projects/${project.id}`}
+              />
+            )) : <p className="text-blue-100/60 max-w-2xl mx-auto">
+              No Projects Found!
+            </p>}
+          </div>
+        </div>
+
+        {/* Community Showcase */}
+        <div className="container mx-auto px-4 mt-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-white mb-4">Community Showcase</h2>
             <p className="text-blue-100/60 max-w-2xl mx-auto">
@@ -123,8 +117,9 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map((project, index) => (
+            {communityProjects.map((project, index) => (
               <ProjectCard
+                id={index.toString()}
                 key={index}
                 title={project.title}
                 description={project.description}

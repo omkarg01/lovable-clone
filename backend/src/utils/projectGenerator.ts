@@ -2,6 +2,8 @@ import { Sandbox } from '@e2b/code-interpreter';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { z } from 'zod';
 import { createFile, updateFile, deleteFile, readFile } from '../../tools/index.js';
+import path from 'path';
+import { getR2File, listFiles } from './r2.js';
 
 
 const LLM_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -114,6 +116,109 @@ INSTRUCTIONS:
 4. Add clear documentation in README.md
 5. Ensure all dependencies are properly specified
 
+FRAMEWORK REQUIREMENTS - ALL PROJECTS USE VITE:
+- React projects: MUST use Vite with @vitejs/plugin-react
+  - package.json scripts must include: "dev": "vite --host 0.0.0.0 --port 5175"
+  - MUST include vite.config.js with the following configuration:
+    import { defineConfig } from 'vite'
+    import react from '@vitejs/plugin-react'
+    export default defineConfig({
+      plugins: [react()],
+      server: {
+        host: '0.0.0.0',
+        port: 5175,
+        allowedHosts: ['all']
+      }
+    })
+  - Generate files matching Vite React template structure
+  
+- Vue projects: MUST use Vite with @vitejs/plugin-vue
+  - package.json scripts must include: "dev": "vite --host 0.0.0.0 --port 5175"
+  - MUST include vite.config.js with the following configuration:
+    import { defineConfig } from 'vite'
+    import vue from '@vitejs/plugin-vue'
+    export default defineConfig({
+      plugins: [vue()],
+      server: {
+        host: '0.0.0.0',
+        port: 5175,
+        allowedHosts: ['all']
+      }
+    })
+  - Generate files matching Vite Vue template structure
+  
+- Svelte projects: MUST use Vite with @sveltejs/vite-plugin-svelte
+  - package.json scripts must include: "dev": "vite --host 0.0.0.0 --port 5175"
+  - MUST include vite.config.js with the following configuration:
+    import { defineConfig } from 'vite'
+    import { svelte } from '@sveltejs/vite-plugin-svelte'
+    export default defineConfig({
+      plugins: [svelte()],
+      server: {
+        host: '0.0.0.0',
+        port: 5175,
+        allowedHosts: ['all']
+      }
+    })
+  - Generate files matching Vite Svelte template structure
+
+- Next.js projects: MUST use Vite (or Vite-based Next.js setup)
+  - package.json scripts must include: "dev": "vite --host 0.0.0.0 --port 5175"
+  - MUST include vite.config.js with the following configuration:
+    import { defineConfig } from 'vite'
+    export default defineConfig({
+      server: {
+        host: '0.0.0.0',
+        port: 5175,
+        allowedHosts: ['all']
+      }
+    })
+  
+- Angular projects: MUST use Vite (or Vite-based Angular setup)
+  - package.json scripts must include: "dev": "vite --host 0.0.0.0 --port 5175"
+  - MUST include vite.config.js with the following configuration:
+    import { defineConfig } from 'vite'
+    export default defineConfig({
+      server: {
+        host: '0.0.0.0',
+        port: 5175,
+        allowedHosts: ['all']
+      }
+    })
+  
+- Nuxt projects: MUST use Nuxt 3 with Vite (Nuxt 3 has native Vite support)
+  - package.json scripts must include: "dev": "vite --host 0.0.0.0 --port 5175"
+  - MUST include vite.config.js with the following configuration:
+    import { defineConfig } from 'vite'
+    export default defineConfig({
+      server: {
+        host: '0.0.0.0',
+        port: 5175,
+        allowedHosts: ['all']
+      }
+    })
+  
+- Remix projects: MUST use Remix with Vite adapter
+  - package.json scripts must include: "dev": "vite --host 0.0.0.0 --port 5175"
+  - MUST include vite.config.js with the following configuration:
+    import { defineConfig } from 'vite'
+    export default defineConfig({
+      server: {
+        host: '0.0.0.0',
+        port: 5175,
+        allowedHosts: ['all']
+      }
+    })
+
+CRITICAL RULES:
+- DO NOT use Create React App (react-scripts)
+- DO NOT use Vue CLI (@vue/cli-service)
+- DO NOT use framework-specific CLI tools that don't use Vite
+- ALL projects MUST use Vite as the build tool
+- ALL projects MUST use port 5175
+- ALL projects MUST use the dev script: "dev": "vite --host 0.0.0.0 --port 5175"
+- ALL projects MUST include a vite.config.js file with server.allowedHosts: ['all'] to allow all hosts (required for E2B sandbox environments)
+
 RESPONSE FORMAT:
 Return a JSON array of file operations. Each operation should be an object with the following structure:
 
@@ -132,6 +237,8 @@ Return a JSON array of file operations. Each operation should be an object with 
 
 IMPORTANT:
 - Only use the following operations: 'createFile', 'updateFile', 'deleteFile', 'readFile'
+- For NEW projects: ONLY use 'createFile' operations - DO NOT use 'readFile', 'updateFile', or 'deleteFile'
+- For EXISTING projects: You may use 'readFile' to read existing files before modifying them
 - Always include the full path in the 'location' field
 - For file content, use proper indentation and formatting
 - Include all necessary files for the project to work
@@ -149,6 +256,7 @@ interface ProjectFile {
 interface ProjectGenerationResult {
   success: boolean;
   fileCount: number;
+  sandboxId?: string;
   sandboxUrl: string;
   error?: string;
   warning?: string;
@@ -434,6 +542,54 @@ function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
 }
 
+// Helper function to detect project type and get appropriate dev command
+interface DevCommandConfig {
+  command: string;
+  port: number;
+  projectType?: string; // All projects use Vite, but keep type for identification: 'vite' | 'unknown'
+}
+
+export function detectProjectTypeAndGetCommand(packageJsonContent: string): DevCommandConfig {
+  try {
+    const packageJson = JSON.parse(packageJsonContent);
+    const scripts = packageJson.scripts || {};
+    
+    // All projects use Vite - check if dev script exists
+    if (scripts['dev']) {
+      // If dev script already has vite and host/port, use it as-is
+      const devScript = scripts['dev'];
+      if (devScript.includes('vite') && devScript.includes('--host') && devScript.includes('--port')) {
+        return {
+          command: 'npm run dev',
+          port: 5175,
+          projectType: 'vite'
+        };
+      }
+      // Otherwise, override with standard Vite command
+      return {
+        command: 'npm run dev -- --host 0.0.0.0 --port 5175',
+        port: 5175,
+        projectType: 'vite'
+      };
+    }
+    
+    // If no dev script, return Vite command (project will need to be fixed, but this is safe)
+    return {
+      command: 'npm run dev -- --host 0.0.0.0 --port 5175',
+      port: 5175,
+      projectType: 'vite'
+    };
+  } catch (error) {
+    console.error('Error parsing package.json:', error);
+    // Fallback to Vite
+    return {
+      command: 'npm run dev -- --host 0.0.0.0 --port 5175',
+      port: 5175,
+      projectType: 'vite'
+    };
+  }
+}
+
 // Function to execute file operations in the sandbox
 async function executeFileOperations(
   operations: FileOperation[],
@@ -443,7 +599,10 @@ async function executeFileOperations(
 ): Promise<{ files: ProjectFile[]; errors: string[] }> {
   const files: ProjectFile[] = [];
   const errors: string[] = [];
+  // R2 PATH
   const projectRoot = `projects/${projectId}/${projectName}`;
+  // Sandbox VM path
+
 
   // Log the operations we're about to perform
   console.log('Executing file operations:', {
@@ -481,9 +640,13 @@ async function executeFileOperations(
 
           try {
             // ✅ Write file to sandbox
-            await sandbox.files.write(op.location, op.content);
-            console.log(`✅ [Sandbox] Created file: ${op.location}`);
+            // const fullVMPath = path.posix.join('/home/user', op.location);
+            // const dirPath = path.posix.dirname(fullVMPath);
+            // await ensureDirectoryExists(sandbox, dirPath);
+            // await sandbox.files.write(fullVMPath, op.content);
+            // console.log(`✅ [Sandbox] Created file: ${fullVMPath}`);
 
+            // ✅ Create file in R2
             const createResult = await createFile.execute({
               location: fullPath,
               content: op.content
@@ -513,9 +676,13 @@ async function executeFileOperations(
 
           try {
             // ✅ Update file in sandbox
-            await sandbox.files.write(op.location, op.content);
-            console.log(`✅ [Sandbox] Updated file: ${op.location}`);
+            // const fullVMPath = path.posix.join('/home/user', op.location);
+            // const dirPath = path.posix.dirname(fullVMPath);
+            // await ensureDirectoryExists(sandbox, dirPath);
+            // await sandbox.files.write(fullVMPath, op.content);
+            // console.log(`✅ [Sandbox] Updated file: ${fullVMPath}`);
 
+            // ✅ Update file in R2
             const updateResult = await updateFile.execute({
               location: fullPath,
               content: op.content
@@ -546,9 +713,13 @@ async function executeFileOperations(
           try {
 
             // ✅ Delete from sandbox
-            await sandbox.files.remove(op.location);
-            console.log(`✅ [Sandbox] Deleted file: ${op.location}`);
+            // const fullVMPath = path.posix.join('/home/user', op.location);
+            // const dirPath = path.posix.dirname(fullVMPath);
+            // await ensureDirectoryExists(sandbox, dirPath);
+            // await sandbox.files.remove(fullVMPath);
+            // console.log(`✅ [Sandbox] Deleted file: ${fullVMPath}`);
 
+            // ✅ Delete from R2
             const deleteResult = await deleteFile.execute({
               location: fullPath
             });
@@ -571,9 +742,13 @@ async function executeFileOperations(
 
           try {
             // ✅ Read from sandbox
-            await sandbox.files.read(op.location);
-            console.log(`✅ [Sandbox] Read file: ${op.location}`);
+            // const fullVMPath = path.posix.join('/home/user', op.location);
+            // const dirPath = path.posix.dirname(fullVMPath);
+            // await ensureDirectoryExists(sandbox, dirPath);
+            // await sandbox.files.read(fullVMPath);
+            // console.log(`✅ [Sandbox] Read file: ${fullVMPath}`);
 
+            // ✅ Read from R2
             const readFileResult = await readFile.execute({
               location: fullPath
             });
@@ -628,11 +803,12 @@ export async function generateAndUploadProjectFiles(
     sandbox = await Sandbox.create('f9osur8wx7gur0n4hja6', {
       timeoutMs: 3600000  // 1 hour
     });
-    await new Promise(resolve => setTimeout(resolve, 5000));
 
-    const host = sandbox.getHost(5175);
-    const sandboxUrl = `https://${host}`;
-    console.log('Sandbox URL:', sandboxUrl);
+    // At the start of generateAndUploadProjectFiles, before any file operations
+    console.log("projectName", projectName)
+    const projectDir = `/home/user/${projectName}`;
+    await sandbox.commands.run(`mkdir -p "${projectDir}"`);
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     // Generate project structure using AI
     const response = await fetch(LLM_URL, {
@@ -674,30 +850,71 @@ export async function generateAndUploadProjectFiles(
       throw new Error('Failed to generate project structure. No valid file operations found in the AI response.');
     }
 
+    // Filter out readFile operations for new projects
+    const filteredOperations = operations.filter(op => {
+      if (isNewProject) {
+        return op.operation !== 'readFile';
+      }
+      return true; // For existing projects, allow all operations
+    });
+
     // Execute file operations
-    const { files, errors } = await executeFileOperations(operations, projectId, projectName, sandbox);
+    const { files, errors } = await executeFileOperations(filteredOperations, projectId, projectName, sandbox);
+
+    // After file operations, add a small delay
+    await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
+
+    // get the content and file path call r2
+    const r2filenames = await listFiles(projectId);
+    console.log("r2filenames", r2filenames);
+
+    // create a array of files with path and content use getR2File
+    const projectFiles: ProjectFile[] = await Promise.all(
+      r2filenames.map(async (file) => ({
+        path: file,
+        content: await getR2File(path.posix.join("projects", projectId, file)), // join for linux
+      }))
+    );
+    console.log("projectFiles", projectFiles);
+
+    // write files to sandbox
+    for (const file of projectFiles) {
+      await sandbox.files.write(`/home/user/${file.path}`, file.content);
+      console.log(`✅ [Sandbox] Wrote file: ${file.path}`);
+    }
 
 
-    const allFiles = await sandbox.files.list(`/home/user/${projectName}`, { recursive: true });
-    console.log('📁 Sandbox files:', allFiles);
+    const allFiles = await sandbox.files.list(projectDir, { recursive: true });
+    // console.log('📁 Sandbox files:', allFiles);
 
-
-
-
-    // Clean up any global installations first
-    //   await sandbox.commands.run(`
-    //   cd /home/user/${projectName} &&
-    //   rm -rf node_modules package-lock.json &&AS`/* DS */
-    //   npm cache clean --force
-    // `);
-    // console package.json
+    // Read package.json to detect project type
     const packageJson = await sandbox.files.read(`/home/user/${projectName}/package.json`);
-    console.log('Package.json:', packageJson);
+    // console.log('Package.json:', packageJson);
 
-    // const processes = await sandbox.process.list();
-    // console.log('Running processes:', processes);
+    // Detect project type and get appropriate dev command and port
+    const devConfig = detectProjectTypeAndGetCommand(packageJson);
+    console.log(`Detected project type - Command: ${devConfig.command}, Port: ${devConfig.port}`);
 
-    const result = await sandbox.commands.run(`cd /home/user/${projectName} && npm install && npm run dev -- --host 0.0.0.0 --port 5175`, {
+    // Get the host URL using the detected port
+    const host = sandbox.getHost(devConfig.port);
+    const sandboxUrl = `https://${host}`;
+    const sandboxId = sandbox.sandboxId;
+    console.log('Sandbox URL:', sandboxUrl);
+    console.log('Sandbox ID:', sandboxId);
+
+    // Build the command with proper environment variables
+    let envVars: Record<string, string> = {
+      SKIP_PREFLIGHT_CHECK: "true"
+    };
+
+    // All projects use Vite, which handles host/port via command flags
+    // No framework-specific environment variables needed
+
+    // Run the appropriate dev command based on project type
+    const fullCommand = `cd /home/user/${projectName} && npm install && ${devConfig.command}`;
+    console.log(`Running command: ${fullCommand}`);
+
+    const result = await sandbox.commands.run(fullCommand, {
       timeoutMs: 0,
       background: true,
       onStdout: (data: any) => {
@@ -706,38 +923,37 @@ export async function generateAndUploadProjectFiles(
       onStderr: (data: any) => {
         console.error('stderr:', data);
       },
-      env: {
-        SKIP_PREFLIGHT_CHECK: "true"
-      }
+      env: envVars
     });
-    console.log("Sandbox result:", result)
+    // console.log("Sandbox result:", result)
 
-    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    // const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
     // Start a background task to close the sandbox after 2 minutes
-    (async () => {
-      await delay(120000); // 2 minutes in milliseconds
+    // (async () => {
+    //   await delay(120000); // 2 minutes in milliseconds
 
-      try {
-        console.log('Auto-terminating sandbox...');
-        await sandbox.close();
-        console.log('Sandbox terminated successfully');
-      } catch (error) {
-        console.error('Error terminating sandbox:', error);
-      }
-    })();
+    //   try {
+    //     console.log('Auto-terminating sandbox...');
+    //     await sandbox.close();
+    //     console.log('Sandbox terminated successfully');
+    //   } catch (error) {
+    //     console.error('Error terminating sandbox:', error);
+    //   }
+    // })();
 
-    if (files.length === 0) {
-      throw new Error('Failed to create any files. ' + (errors[0] || 'Unknown error'));
-    }
+    // if (files.length === 0) {
+    //   throw new Error('Failed to create any files. ' + (errors[0] || 'Unknown error'));
+    // }
 
-    if (errors.length > 0) {
-      console.warn('Some operations had errors:', errors);
-    }
+    // if (errors.length > 0) {
+    //   console.warn('Some operations had errors:', errors);
+    // }
 
     return {
       success: true,
       fileCount: files.length,
+      sandboxId,
       sandboxUrl,
       files,
       ...(errors.length > 0 && { warning: `Some operations had errors: ${errors.join('; ')}` })
@@ -752,13 +968,31 @@ export async function generateAndUploadProjectFiles(
       error: error.message || 'Unknown error occurred during project generation'
     };
   } finally {
-    // Clean up sandbox
-    if (sandbox && typeof sandbox.close === 'function') {
-      try {
-        await sandbox.close();
-      } catch (e) {
-        console.error('Error closing sandbox:', e);
-      }
-    }
+    // CRITICAL: Do NOT close sandbox - we need to keep it alive for future use
+    // The sandbox will be managed through sandboxId for reconnection
+    // if (sandbox && typeof sandbox.close === 'function') {
+    //   try {
+    //     await sandbox.close();
+    //   } catch (e) {
+    //     console.error('Error closing sandbox:', e);
+    //   }
+    // }
   }
 }
+
+const ensureDirectoryExists = async (sandbox: any, dirPath: string) => {
+  try {
+    await sandbox.commands.run(`mkdir -p "${dirPath}"`);
+    console.log(`✅ Directory created/verified: ${dirPath}`);
+  } catch (error: any) {
+    if (error.code !== 'EEXIST') {
+      console.error(`❌ Error creating directory ${dirPath}:`, error);
+      throw error;
+    }
+  }
+};
+
+
+export const formatFileContent = (files: Array<{ path: string; content: string }>) => {
+  return files.map(file => `File: ${file.path}\nContent:\n${file.content}\n`).join('\n');
+};

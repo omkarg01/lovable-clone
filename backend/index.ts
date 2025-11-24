@@ -1,16 +1,20 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import express from "express";
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { streamText } from 'ai';
 import { SYSTEM_PROMPT } from "./prompt.js";
 import { createFile, updateFile, deleteFile, readFile } from "./tools/index.js";
-import dotenv from 'dotenv';
 import { Sandbox } from '@e2b/code-interpreter'
 import cors from 'cors';
 import authRoutes from './src/routes/auth.routes.js';
 import projectRoutes from './src/routes/project.routes.js';
+// import { loadEnv } from "./src/config/index.js";
 
-dotenv.config();
+// export const env = loadEnv();
 const app = express();
+
+// console.log("CLOUDFLARE_BUCKET:", process.env.CLOUDFLARE_BUCKET);
 
 // Middleware
 app.use(cors());

@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:prod": "NODE_ENV=production next build",
-    "start": "next start",
+    "build:prod": "NEXT_PUBLIC_APP_ENV=production next build",
+    "start": "NEXT_PUBLIC_APP_ENV=development next start",
     "lint": "eslint"
   },
   "dependencies": {

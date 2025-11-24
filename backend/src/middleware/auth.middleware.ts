@@ -9,8 +9,10 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
       return res.status(401).json({ error: 'No token provided' });
     }
 
-    const token = authHeader.split(' ')[1];
-    if (!token) {
+    const token = authHeader.split(' ')[1]?.trim();
+    
+    // Validate token exists and is not empty
+    if (!token || token === '' || token === 'undefined' || token === 'null') {
       return res.status(401).json({ error: 'No token provided' });
     }
 

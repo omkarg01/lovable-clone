@@ -1,47 +1,28 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { LogOut } from 'lucide-react';
 import SignupDialog from './SignupDialog';
 import LoginDialog from './LoginDialog';
+import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
   const [isSignupOpen, setIsSignupOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [user, setUser] = useState<User>({
-    username: "",
-    id: "",
-    token: ""
-  });
 
-  useEffect(() => {
-    // Check for existing token in localStorage on component mount
-    const stored = localStorage.getItem("user");
-    if (!stored) return;
-    try {
-      const parsed = JSON.parse(stored);
-      setUser(parsed);
-    } catch (err) {
-      console.error("Invalid user JSON", err);
-    }
-  }, []);
+  const { user, login, logout } = useAuth();
+  console.log("user",user);
 
   const handleLoginSuccess = (data: User) => {
     console.log("handleLoginSuccess");
-    setUser(data);
-    localStorage.setItem('user', JSON.stringify(data));
+    login(data);
     setIsLoginOpen(false);
   };
 
   const handleLogout = () => {
-    setUser({
-      username: "",
-      id: "",
-      token: ""
-    });
-    localStorage.removeItem('user');
+    logout();
   };
 
   return (
@@ -74,7 +55,7 @@ export default function Navbar() {
             </div>
             <div className="hidden md:block">
               <div className="flex items-center space-x-4">
-                {user.username ? (
+                {user ? (
                   <div className="flex items-center space-x-4">
                     <span className="text-white text-sm font-medium">
                       {user.username}

@@ -3,7 +3,7 @@ import z, { ZodIssue } from 'zod';
 
 import { createProjectSchema, type CreateProjectInput } from '../validations/project.validation.js';
 import prisma from '../lib/prisma.js';
-import { generateAndUploadProjectFiles, suggestProjectName } from '../utils/projectGenerator.js';
+import { formatFileContent, generateAndUploadProjectFiles, suggestProjectName } from '../utils/projectGenerator.js';
 import { getR2File, listFiles } from '../utils/r2.js';
 
 interface MessageData {
@@ -13,6 +13,13 @@ interface MessageData {
 // Extend Express Request type to include user
 type AuthenticatedRequest = Request & { user?: { id: string } };
 
+/**
+ * Create a new project
+ * Route: POST /api/projects
+ * @param req - request object
+ * @param res - response object
+ * @returns The created project
+ */
 export const createProject = async (req: Request, res: Response) => {
     try {
         // Validate input using Zod schema
@@ -57,20 +64,42 @@ export const createProject = async (req: Request, res: Response) => {
         try {
             result = await generateAndUploadProjectFiles(project.id, userQuery, projectName, true);
 
+            console.log("result", result);
             if (result.success) {
                 assistantResponse = `Successfully generated ${result.fileCount} files. `;
                 if (result.files) {
                     assistantResponse += `Files created: ${result.files.map(f => f.path).join(', ')}`;
                     generatedFiles = result.files;
                 }
+                
+                // Store sandbox info in database
+                if (result.sandboxId && result.sandboxUrl) {
+                    try {
+                        await prisma.project.update({
+                            where: { id: project.id },
+                            data: {
+                                sandboxId: result.sandboxId,
+                                sandboxUrl: result.sandboxUrl,
+                                sandboxStatus: 'active'
+                            } as any
+                        });
+                        console.log(`[createProject] Stored sandbox info for project ${project.id}:`, {
+                            projectId: project.id,
+                            sandboxId: result.sandboxId,
+                            sandboxUrl: result.sandboxUrl
+                        });
+                    } catch (dbError) {
+                        console.error('[createProject] Error storing sandbox info in database:', dbError);
+                    }
+                }
             } else {
                 assistantResponse = 'Failed to generate project files. ' + (result.error || 'Unknown error');
-                console.error('Project generation failed:', result.error);
+                console.error('[createProject] Project generation failed:', result.error);
             }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             assistantResponse = `Error during project generation: ${errorMessage}`;
-            console.error('Error in project generation:', error);
+            console.error('[createProject] Error in project generation:', error);
         }
 
         try {
@@ -120,6 +149,13 @@ export const createProject = async (req: Request, res: Response) => {
     }
 };
 
+/**
+ * Get all projects for the authenticated user
+ * Route: GET /api/projects
+ * @param req - request object
+ * @param res - response object
+ * @returns The projects for the authenticated user
+ */
 export const getProjects = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const userId = (req as any).user?.id;
@@ -147,6 +183,13 @@ export const getProjects = async (req: AuthenticatedRequest, res: Response) => {
     }
 };
 
+/**
+ * Get a project for the authenticated user
+ * Route: GET /api/projects/:projectId
+ * @param req - projectId
+ * @param res - response object
+ * @returns The project for the authenticated user
+ */
 export const getProject = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { projectId } = req.params;
@@ -162,7 +205,7 @@ export const getProject = async (req: AuthenticatedRequest, res: Response) => {
                 id: projectId,
                 userId // Ensure the user owns the project
             }
-        });
+        }) as any;
 
         if (!project) {
             return res.status(404).json({
@@ -171,16 +214,64 @@ export const getProject = async (req: AuthenticatedRequest, res: Response) => {
             });
         }
 
-        // 2. List files from R2
-        const files = await listFiles(projectId);
-        console.log("files", files);
+        // 2. Get or recreate sandbox
+        let sandboxUrl = project.sandboxUrl;
+        let sandboxStatus = project.sandboxStatus || 'active';
+        let sandboxId = project.sandboxId;
 
-        // 3. Return the response
+        try {
+            const { getOrRecreateSandbox } = await import('../utils/sandboxManager.js');
+            const sandboxInfo = await getOrRecreateSandbox(projectId, project.title);
+            sandboxUrl = sandboxInfo.sandboxUrl;
+            sandboxId = sandboxInfo.sandboxId;
+            sandboxStatus = 'active';
+
+            // Update database if sandbox was recreated or status changed
+            if (sandboxId !== project.sandboxId || sandboxUrl !== project.sandboxUrl) {
+                await prisma.project.update({
+                    where: { id: projectId },
+                    data: {
+                        sandboxId: sandboxId,
+                        sandboxUrl: sandboxUrl,
+                        sandboxStatus: sandboxStatus
+                    } as any
+                });
+                console.log(`[getProject] Updated project ${projectId} with new sandbox info:`, {
+                    projectId,
+                    sandboxId,
+                    sandboxUrl,
+                    sandboxStatus
+                });
+            }
+        } catch (error: any) {
+            console.error('[getProject] Error managing sandbox:', {
+                projectId,
+                error: error.message,
+                stack: error.stack
+            });
+            // Continue with existing sandboxUrl if available, or set status to expired
+            if (!sandboxUrl) {
+                sandboxStatus = 'expired';
+                await prisma.project.update({
+                    where: { id: projectId },
+                    data: { sandboxStatus: 'expired' } as any
+                });
+            }
+        }
+
+        // 3. List files from R2
+        const files = await listFiles(projectId);
+        console.log("[getProject] files", files);
+
+        // 4. Return the response
         res.json({
             success: true,
             project: {
                 ...project,
-                files: files.filter(Boolean) // Remove any empty strings
+                files: files.filter(Boolean), // Remove any empty strings
+                sandboxUrl: sandboxUrl || null,
+                sandboxStatus: sandboxStatus || null,
+                sandboxId: sandboxId || null
             }
         });
 
@@ -193,7 +284,13 @@ export const getProject = async (req: AuthenticatedRequest, res: Response) => {
     }
 };
 
-
+/**
+ * Get a file from the project
+ * Route: GET /api/projects/:projectId/file
+ * @param req - projectId and filePath
+ * @param res - response object
+ * @returns The file content
+ */
 export const getFile = async (
     req: AuthenticatedRequest,
     res: Response,
@@ -207,8 +304,10 @@ export const getFile = async (
         ).status(400);
     }
 
+    const path = `projects/${projectId}/${filePath}`;
+
     try {
-        const content = await getR2File(projectId, filePath);
+        const content = await getR2File(path);
         return res.json({ content }).status(200);
     } catch (error) {
         console.error('Error fetching file:', error);
@@ -220,6 +319,13 @@ export const getFile = async (
 
 
 
+/**
+ * Get all conversations for a project
+ * Route: GET /api/projects/:projectId/conversations
+ * @param req - projectId
+ * @param res - response object
+ * @returns The conversations for the project
+ */
 export const getProjectConversations = async (req: Request, res: Response) => {
     try {
         const { projectId } = req.params;
@@ -290,6 +396,13 @@ export const getProjectConversations = async (req: Request, res: Response) => {
     }
 };
 
+/**
+ * Create a new conversation for the project
+ * Route: POST /api/projects/:projectId/conversation
+ * @param req - projectId and query
+ * @param res - response object
+ * @returns The conversation created
+ */
 export const createConversation = async (req: Request, res: Response) => {
     try {
         const { projectId } = req.params;
@@ -303,9 +416,8 @@ export const createConversation = async (req: Request, res: Response) => {
 
         // Check if project exists and user has access
         const project = await prisma.project.findUnique({
-            where: { id: projectId },
-            select: { title: true, userId: true }
-        });
+            where: { id: projectId }
+        }) as any;
 
         if (!project) {
             return res.status(404).json({ error: 'Project not found' });
@@ -315,8 +427,17 @@ export const createConversation = async (req: Request, res: Response) => {
             return res.status(403).json({ error: 'Forbidden' });
         }
 
+        // Check and ensure sandbox is available before modifying project
+        // Note: generateAndUploadProjectFiles will create a new sandbox, but we should
+        // try to use existing one if available. For now, we'll let it recreate and update DB after.
+        // TODO: Refactor generateAndUploadProjectFiles to accept optional sandbox parameter
+        if (project.sandboxId && project.sandboxStatus === 'expired') {
+            console.log(`[createConversation] Project ${projectId} has expired sandbox, will be recreated during file operations`);
+        }
+
         let assistantResponse = '';
         const generatedFiles: Array<{ path: string; content: string; publicUrl?: string; r2Url?: string }> = [];
+        const existingFiles: Array<string> = [];
 
         // If this is a user message, process it with the LLM
         if (query) {
@@ -344,6 +465,12 @@ export const createConversation = async (req: Request, res: Response) => {
 
                 const projectStructure = await listFiles(projectId)
                 // console.log("projectStructure", projectStructure);
+                // inside projectStrucutre we only have file name need to get the content of the file and give it to the LLM
+                for (const filePath of projectStructure) {
+                    const path = `projects/${projectId}/${filePath}`;
+                    const content = await getR2File(path);
+                    existingFiles.push(`File: ${filePath}\nContent:\n${content}\n`);
+                }
 
                 // Format the prompt with conversation history
                 const context = recentMessages
@@ -381,18 +508,21 @@ export const createConversation = async (req: Request, res: Response) => {
                     Conversation History:
                     ${context}
 
+                    Existing Files:
+                    ${existingFiles.join('\n')}
+
                     User Query: ${userQuery}
 
                     Assistant:`;
 
-                // console.log("enhancedPrompt", enhancedPrompt);
-
+                console.log("enhancedPrompt", enhancedPrompt);
 
                 // Use the project object we already have from the earlier query
                 const projectName = project.title || 'untitled-project';
 
                 // Call generateAndUploadProjectFiles with project name
                 const result = await generateAndUploadProjectFiles(projectId, enhancedPrompt, projectName, false);
+                // const result = { success: false, files: [], error: 'File generation failed', warning: 'No files needed to be modified',  };
 
                 if (result.success) {
                     // Format the success response
@@ -403,17 +533,40 @@ export const createConversation = async (req: Request, res: Response) => {
                     if (result.files?.length) {
                         generatedFiles.length = 0;
                         generatedFiles.push(...result.files);
-                        const fileList = result.files.map(f => `- ${f.path}`).join('\n');
+                        const fileList = result.files.map((f: any) => `- ${f.path}`).join('\n');
                         assistantResponse += `\n\nUpdated files:\n${fileList}`;
                     }
 
                     if (result.warning) {
                         assistantResponse += `\n\nNote: ${result.warning}`;
                     }
+
+                    // Update sandbox info in database if new sandbox was created
+                    // Note: generateAndUploadProjectFiles creates a new sandbox each time
+                    // In the future, we should refactor to reuse existing sandbox
+                    if (result.sandboxId && result.sandboxUrl) {
+                        try {
+                            await prisma.project.update({
+                                where: { id: projectId },
+                                data: {
+                                    sandboxId: result.sandboxId,
+                                    sandboxUrl: result.sandboxUrl,
+                                    sandboxStatus: 'active'
+                                } as any
+                            });
+                            console.log(`[createConversation] Updated sandbox info for project ${projectId}:`, {
+                                projectId,
+                                sandboxId: result.sandboxId,
+                                sandboxUrl: result.sandboxUrl
+                            });
+                        } catch (dbError) {
+                            console.error('[createConversation] Error updating sandbox info:', dbError);
+                        }
+                    }
                 } else {
                     assistantResponse = 'I encountered an error processing your request. ' +
                         (result.error ? `Error: ${result.error}` : 'Please try again.');
-                    console.error('File generation failed:', result.error);
+                    console.error('[createConversation] File generation failed:', result.error);
                 }
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -422,59 +575,29 @@ export const createConversation = async (req: Request, res: Response) => {
             }
         }
 
-        // Check if a chat already exists for this project
-        const existingChat = await prisma.chat.findUnique({
+        // get chat or create new chat if not exists
+        const chat = await prisma.chat.upsert({
             where: { projectId },
-            include: { messages: true }
+            update: {},
+            create: { project: { connect: { id: projectId } } },
+            select: { id: true }
         });
 
-        if (!existingChat) {
-            // If no chat exists, create a new one
-            await prisma.chat.create({
-                data: {
-                    project: {
-                        connect: { id: projectId }
-                    },
-                    messages: {
-                        create: [
-                            {
-                                role: 'user',
-                                data: { content: query },
-                                assistantResponses: {
-                                    create: [
-                                        {
-                                            role: 'assistant',
-                                            data: {
-                                                content: assistantResponse
-                                            }
-                                        }
-                                    ]
-                                }
-                            }
-                        ]
+        // create chat conversation
+        await prisma.chatConversation.create({
+            data: {
+                chatId: chat.id,
+                role: "user",
+                data: { content: query },
+                assistantResponses: {
+                    create: {
+                        role: "assistant",
+                        data: { content: assistantResponse }
                     }
                 }
-            });
-        } else {
-            // If chat exists, create a new message in the existing chat
-            await prisma.chatConversation.create({
-                data: {
-                    role: 'user',
-                    chatId: existingChat.id,
-                    data: { content: query },
-                    assistantResponses: {
-                        create: [
-                            {
-                                role: 'assistant',
-                                data: {
-                                    content: assistantResponse
-                                }
-                            }
-                        ]
-                    }
-                }
-            });
-        }
+            }
+        });
+
 
         return res.status(201).json({
             success: true,

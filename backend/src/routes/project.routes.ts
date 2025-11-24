@@ -13,11 +13,13 @@ router.post('/', authenticate, createProject);
 // GET /api/projects/:projectId - Get project details and file list
 router.get('/:projectId', authenticate, getProject);
 
+// GET /api/projects/:projectId/file - Get a file from the project
 router.get('/:projectId/file', authenticate, getFile);
 
-router.post('/conversation/:projectId', authenticate, createConversation);
+// POST /api/projects/:projectId/conversation - Create a new conversation for the project
+router.post('/:projectId/conversation', authenticate, createConversation);
 
 // GET /api/projects/:projectId/conversations - Get all conversations for a project
-router.get('/conversation/:projectId', authenticate, getProjectConversations);
+router.get('/:projectId/conversations', authenticate, getProjectConversations);
 
 export default router;
