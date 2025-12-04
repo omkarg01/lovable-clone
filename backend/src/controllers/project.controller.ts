@@ -5,6 +5,7 @@ import { createProjectSchema, type CreateProjectInput } from '../validations/pro
 import prisma from '../lib/prisma.js';
 import { formatFileContent, generateAndUploadProjectFiles, suggestProjectName } from '../utils/projectGenerator.js';
 import { getR2File, listFiles } from '../utils/r2.js';
+import path from 'path';
 
 interface MessageData {
     content: string;
@@ -304,10 +305,10 @@ export const getFile = async (
         ).status(400);
     }
 
-    const path = `projects/${projectId}/${filePath}`;
+    const fullPath = path.posix.join("projects", projectId, filePath);
 
     try {
-        const content = await getR2File(path);
+        const content = await getR2File(fullPath);
         return res.json({ content }).status(200);
     } catch (error) {
         console.error('Error fetching file:', error);
@@ -467,8 +468,8 @@ export const createConversation = async (req: Request, res: Response) => {
                 // console.log("projectStructure", projectStructure);
                 // inside projectStrucutre we only have file name need to get the content of the file and give it to the LLM
                 for (const filePath of projectStructure) {
-                    const path = `projects/${projectId}/${filePath}`;
-                    const content = await getR2File(path);
+                    const fullPath = path.posix.join("projects", projectId, filePath);
+                    const content = await getR2File(fullPath);
                     existingFiles.push(`File: ${filePath}\nContent:\n${content}\n`);
                 }
 

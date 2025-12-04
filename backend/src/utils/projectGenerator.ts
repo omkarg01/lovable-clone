@@ -99,15 +99,41 @@ function generateProjectName(query: string): string {
 const SYSTEM_PROMPT = `You are a helpful assistant that helps create and modify project structures. 
 Please provide the project structure and files in the following JSON format:
 
+CRITICAL: Your response MUST be a JSON array starting with [ and ending with ]. DO NOT wrap it in an object with "operations" property.
+
+RESPONSE FORMAT - STRICT REQUIREMENTS:
+You MUST return a JSON array directly. Start your response with [ and end with ]. Do NOT wrap it in an object.
+
+CORRECT FORMAT (use this exact structure):
+[
+  {
+    "operation": "createFile",
+    "location": "path/to/file",
+    "content": "file content here"
+  },
+  {
+    "operation": "updateFile",
+    "location": "path/to/another/file",
+    "content": "file content here"
+  }
+]
+
+INCORRECT FORMAT (DO NOT use this):
 {
-  "operations": [
-    {
-      "operation": "createFile" | "updateFile" | "deleteFile" | "readFile",
-      "location": "path/to/file",
-      "content": "file content"  // Not needed for deleteFile
-    }
-  ]
+  "operations": [...]
 }
+
+Your ENTIRE response MUST be ONLY a JSON array.
+- NO prose
+- NO explanation
+- NO markdown
+- NO code fences (no json)
+- NO text before or after the array
+
+If you output anything other than a raw JSON array, the system will throw an error.
+
+
+Your response must start with [ and be a valid JSON array. Any other format will cause errors.
 
 INSTRUCTIONS:
 1. Analyze the requirements and determine the appropriate tech stack
@@ -127,7 +153,7 @@ FRAMEWORK REQUIREMENTS - ALL PROJECTS USE VITE:
       server: {
         host: '0.0.0.0',
         port: 5175,
-        allowedHosts: ['all']
+        allowedHosts: true
       }
     })
   - Generate files matching Vite React template structure
@@ -142,7 +168,7 @@ FRAMEWORK REQUIREMENTS - ALL PROJECTS USE VITE:
       server: {
         host: '0.0.0.0',
         port: 5175,
-        allowedHosts: ['all']
+        allowedHosts: true
       }
     })
   - Generate files matching Vite Vue template structure
@@ -157,7 +183,7 @@ FRAMEWORK REQUIREMENTS - ALL PROJECTS USE VITE:
       server: {
         host: '0.0.0.0',
         port: 5175,
-        allowedHosts: ['all']
+        allowedHosts: true
       }
     })
   - Generate files matching Vite Svelte template structure
@@ -170,7 +196,7 @@ FRAMEWORK REQUIREMENTS - ALL PROJECTS USE VITE:
       server: {
         host: '0.0.0.0',
         port: 5175,
-        allowedHosts: ['all']
+        allowedHosts: true
       }
     })
   
@@ -182,7 +208,7 @@ FRAMEWORK REQUIREMENTS - ALL PROJECTS USE VITE:
       server: {
         host: '0.0.0.0',
         port: 5175,
-        allowedHosts: ['all']
+        allowedHosts: true
       }
     })
   
@@ -194,7 +220,7 @@ FRAMEWORK REQUIREMENTS - ALL PROJECTS USE VITE:
       server: {
         host: '0.0.0.0',
         port: 5175,
-        allowedHosts: ['all']
+        allowedHosts: true
       }
     })
   
@@ -206,7 +232,7 @@ FRAMEWORK REQUIREMENTS - ALL PROJECTS USE VITE:
       server: {
         host: '0.0.0.0',
         port: 5175,
-        allowedHosts: ['all']
+        allowedHosts: true
       }
     })
 
@@ -217,10 +243,10 @@ CRITICAL RULES:
 - ALL projects MUST use Vite as the build tool
 - ALL projects MUST use port 5175
 - ALL projects MUST use the dev script: "dev": "vite --host 0.0.0.0 --port 5175"
-- ALL projects MUST include a vite.config.js file with server.allowedHosts: ['all'] to allow all hosts (required for E2B sandbox environments)
+- ALL projects MUST include a vite.config.js file with server.allowedHosts: true to allow all hosts (required for E2B sandbox environments)
 
 RESPONSE FORMAT:
-Return a JSON array of file operations. Each operation should be an object with the following structure:
+Return ONLY a JSON array. Start with [ and end with ]. Each element is an operation object with "operation", "location", and optionally "content" fields.
 
 [
   {
@@ -273,156 +299,185 @@ const fileOperationSchema = z.object({
 type FileOperation = z.infer<typeof fileOperationSchema>;
 
 // Helper function to parse AI responses into file operations
+// function parseFileOperations(aiResponse: string): FileOperation[] {
+//   if (!aiResponse) {
+//     console.error('Empty AI response received');
+//     return [{
+//       operation: 'createFile',
+//       location: 'error.txt',
+//       content: 'Error: Empty response received from the AI. Please try again.'
+//     }];
+//   }
+
+//   // Try to clean the response first
+//   let cleanResponse = aiResponse.trim();
+
+//   // Log the first 500 characters of the response for debugging
+//   console.log('AI Response (first 500 chars):', cleanResponse.substring(0, 500));
+
+//   try {
+//     // Remove markdown code block markers if present
+//     if (cleanResponse.startsWith('```')) {
+//       // Handle both ```json and ```
+//       cleanResponse = cleanResponse
+//         .replace(/^```(?:json)?\n?/s, '')  // Remove starting ```json or ```
+//         .replace(/\n?```$/s, '');      // Remove ending ```
+//     }
+
+//     // Try different parsing strategies
+//     const parsingStrategies = [
+//       // Strategy 1: Direct JSON parse
+//       () => {
+//         try {
+//           return JSON.parse(cleanResponse);
+//         } catch (e) {
+//           throw new Error('Direct JSON parse failed');
+//         }
+//       },
+
+//       // Strategy 2: Extract JSON array
+//       () => {
+//         const jsonMatch = cleanResponse.match(/\[\s*\{[\s\S]*\}\s*\]/s);
+//         if (!jsonMatch) throw new Error('No JSON array found');
+//         return JSON.parse(jsonMatch[0]);
+//       },
+
+//       // Strategy 3: Extract single JSON object
+//       () => {
+//         const objMatch = cleanResponse.match(/\{[\s\S]*\}/s);
+//         if (!objMatch) throw new Error('No JSON object found');
+//         return JSON.parse(objMatch[0]);
+//       },
+
+//       // Strategy 4: Try to fix common JSON issues
+//       () => {
+//         try {
+//           // Make a copy of the response for debugging
+//           const responseCopy = cleanResponse;
+
+//           // Try to fix common JSON issues like trailing commas, single quotes, etc.
+//           let fixedJson = responseCopy
+//             // Remove any control characters that might break JSON parsing
+//             .replace(/[\x00-\x1F\x7F-\x9F]/g, '')
+//             // Fix unescaped quotes within strings
+//             .replace(/"([^"]*?)"(?=[:\s\]},])/g, (match) => {
+//               // Escape any unescaped quotes within the string
+//               return match.replace(/([^\\])"/g, '$1\\"');
+//             })
+//             // Add quotes around unquoted keys
+//             .replace(/([\{\[]\s*)([\w\d_]+)\s*:/g, '$1"$2":')
+//             // Replace single quotes with double quotes
+//             .replace(/'/g, '"')
+//             // Remove trailing commas
+//             .replace(/,(\s*[}\]])/g, '$1')
+//             // Fix missing commas between objects in arrays
+//             .replace(/}\s*{/g, '},{')
+//             // Fix missing commas between key-value pairs
+//             .replace(/"\s*"([^"])/g, '","$1')
+//             // Fix unescaped newlines
+//             .replace(/\n/g, '\\n')
+//             // Fix unescaped tabs
+//             .replace(/\t/g, '\\t');
+
+//           // Try to parse the fixed JSON
+//           const result = JSON.parse(fixedJson);
+
+//           // Log success for debugging
+//           console.log('Successfully parsed JSON after fixes');
+//           return result;
+//         } catch (e) {
+//           // Log the error and the problematic JSON for debugging
+//           console.error('Failed to parse JSON after fixes:', {
+//             error: e instanceof Error ? e.message : String(e),
+//             originalLength: cleanResponse.length,
+//             // Only log a portion to avoid huge logs
+//             originalStart: cleanResponse.substring(0, 200),
+//             originalEnd: cleanResponse.length > 200
+//               ? cleanResponse.substring(cleanResponse.length - 200)
+//               : ''
+//           });
+//           throw new Error('Failed to parse after JSON fixes');
+//         }
+//       }
+//     ];
+
+//     let parsedData: any = null;
+//     let lastError: Error | null = null;
+
+//     // Try each strategy until one works
+//     for (const strategy of parsingStrategies) {
+//       try {
+//         parsedData = strategy();
+//         if (parsedData) break; // Success, exit the loop
+//       } catch (e) {
+//         lastError = e instanceof Error ? e : new Error(String(e));
+//         continue; // Try next strategy
+//       }
+//     }
+
+//     if (!parsedData) {
+//       throw lastError || new Error('All parsing strategies failed');
+//     }
+
+//     // Normalize and validate the parsed data
+//     const operations = normalizeFileOperations(parsedData);
+
+//     if (!Array.isArray(operations) || operations.length === 0) {
+//       throw new Error('No valid file operations found in the response');
+//     }
+
+//     return operations;
+
+//   } catch (error) {
+//     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+//     console.error('Error parsing file operations:', {
+//       error: errorMessage,
+//       stack: error instanceof Error ? error.stack : undefined,
+//       input: cleanResponse.length > 500
+//         ? cleanResponse.substring(0, 500) + '... (truncated)'
+//         : cleanResponse
+//     });
+
+//     // Return a helpful error message to the user
+//     return [{
+//       operation: 'createFile',
+//       location: 'error.txt',
+//       content: `Error: Failed to parse file operations.\n\n` +
+//         `The AI response could not be parsed. Please try again with a different prompt.\n\n` +
+//         `Error details: ${errorMessage}\n\n` +
+//         `If this issue persists, please contact support.`
+//     }];
+//   }
+// }
+
 function parseFileOperations(aiResponse: string): FileOperation[] {
-  if (!aiResponse) {
-    console.error('Empty AI response received');
+  if (!aiResponse?.trim()) {
     return [{
       operation: 'createFile',
       location: 'error.txt',
-      content: 'Error: Empty response received from the AI. Please try again.'
+      content: 'Empty AI response'
     }];
   }
 
-  // Try to clean the response first
-  let cleanResponse = aiResponse.trim();
+  let clean = aiResponse.trim();
 
-  // Log the first 500 characters of the response for debugging
-  console.log('AI Response (first 500 chars):', cleanResponse.substring(0, 500));
+  // Remove code fences
+  if (clean.startsWith("```")) {
+    clean = clean.replace(/^```(\w+)?/, "").replace(/```$/, "");
+  }
 
   try {
-    // Remove markdown code block markers if present
-    if (cleanResponse.startsWith('```')) {
-      // Handle both ```json and ```
-      cleanResponse = cleanResponse
-        .replace(/^```(?:json)?\n?/s, '')  // Remove starting ```json or ```
-        .replace(/\n?```$/s, '');      // Remove ending ```
-    }
-
-    // Try different parsing strategies
-    const parsingStrategies = [
-      // Strategy 1: Direct JSON parse
-      () => {
-        try {
-          return JSON.parse(cleanResponse);
-        } catch (e) {
-          throw new Error('Direct JSON parse failed');
-        }
-      },
-
-      // Strategy 2: Extract JSON array
-      () => {
-        const jsonMatch = cleanResponse.match(/\[\s*\{[\s\S]*\}\s*\]/s);
-        if (!jsonMatch) throw new Error('No JSON array found');
-        return JSON.parse(jsonMatch[0]);
-      },
-
-      // Strategy 3: Extract single JSON object
-      () => {
-        const objMatch = cleanResponse.match(/\{[\s\S]*\}/s);
-        if (!objMatch) throw new Error('No JSON object found');
-        return JSON.parse(objMatch[0]);
-      },
-
-      // Strategy 4: Try to fix common JSON issues
-      () => {
-        try {
-          // Make a copy of the response for debugging
-          const responseCopy = cleanResponse;
-
-          // Try to fix common JSON issues like trailing commas, single quotes, etc.
-          let fixedJson = responseCopy
-            // Remove any control characters that might break JSON parsing
-            .replace(/[\x00-\x1F\x7F-\x9F]/g, '')
-            // Fix unescaped quotes within strings
-            .replace(/"([^"]*?)"(?=[:\s\]},])/g, (match) => {
-              // Escape any unescaped quotes within the string
-              return match.replace(/([^\\])"/g, '$1\\"');
-            })
-            // Add quotes around unquoted keys
-            .replace(/([\{\[]\s*)([\w\d_]+)\s*:/g, '$1"$2":')
-            // Replace single quotes with double quotes
-            .replace(/'/g, '"')
-            // Remove trailing commas
-            .replace(/,(\s*[}\]])/g, '$1')
-            // Fix missing commas between objects in arrays
-            .replace(/}\s*{/g, '},{')
-            // Fix missing commas between key-value pairs
-            .replace(/"\s*"([^"])/g, '","$1')
-            // Fix unescaped newlines
-            .replace(/\n/g, '\\n')
-            // Fix unescaped tabs
-            .replace(/\t/g, '\\t');
-
-          // Try to parse the fixed JSON
-          const result = JSON.parse(fixedJson);
-
-          // Log success for debugging
-          console.log('Successfully parsed JSON after fixes');
-          return result;
-        } catch (e) {
-          // Log the error and the problematic JSON for debugging
-          console.error('Failed to parse JSON after fixes:', {
-            error: e instanceof Error ? e.message : String(e),
-            originalLength: cleanResponse.length,
-            // Only log a portion to avoid huge logs
-            originalStart: cleanResponse.substring(0, 200),
-            originalEnd: cleanResponse.length > 200
-              ? cleanResponse.substring(cleanResponse.length - 200)
-              : ''
-          });
-          throw new Error('Failed to parse after JSON fixes');
-        }
-      }
-    ];
-
-    let parsedData: any = null;
-    let lastError: Error | null = null;
-
-    // Try each strategy until one works
-    for (const strategy of parsingStrategies) {
-      try {
-        parsedData = strategy();
-        if (parsedData) break; // Success, exit the loop
-      } catch (e) {
-        lastError = e instanceof Error ? e : new Error(String(e));
-        continue; // Try next strategy
-      }
-    }
-
-    if (!parsedData) {
-      throw lastError || new Error('All parsing strategies failed');
-    }
-
-    // Normalize and validate the parsed data
-    const operations = normalizeFileOperations(parsedData);
-
-    if (!Array.isArray(operations) || operations.length === 0) {
-      throw new Error('No valid file operations found in the response');
-    }
-
-    return operations;
-
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error parsing file operations:', {
-      error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
-      input: cleanResponse.length > 500
-        ? cleanResponse.substring(0, 500) + '... (truncated)'
-        : cleanResponse
-    });
-
-    // Return a helpful error message to the user
+    const parsed = JSON.parse(clean);
+    return normalizeFileOperations(parsed);
+  } catch (err) {
     return [{
       operation: 'createFile',
       location: 'error.txt',
-      content: `Error: Failed to parse file operations.\n\n` +
-        `The AI response could not be parsed. Please try again with a different prompt.\n\n` +
-        `Error details: ${errorMessage}\n\n` +
-        `If this issue persists, please contact support.`
+      content: `JSON parse error: ${String(err)}`
     }];
   }
 }
+
 
 // Helper function to normalize file operations from different formats
 function normalizeFileOperations(parsed: any): FileOperation[] {
@@ -435,159 +490,46 @@ function normalizeFileOperations(parsed: any): FileOperation[] {
     }
   }
 
-  // Helper function to validate and normalize a single operation
-  const normalizeOperation = (op: any, index: number): FileOperation => {
-    // If it's already a valid operation, return it
+  // Handle wrapper object with 'operations' property (fallback for AI that doesn't follow format)
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.operations && Array.isArray(parsed.operations)) {
+    parsed = parsed.operations;
+  }
+
+  // Must be an array now
+  if (!Array.isArray(parsed)) {
+    throw new Error(`Invalid input: Expected a JSON array of operations, got ${typeof parsed}`);
+  }
+
+  if (parsed.length === 0) {
+    throw new Error('Empty operations array');
+  }
+
+  // Validate and normalize each operation
+  return parsed.map((op, index) => {
     try {
+      // Try direct validation first
       return fileOperationSchema.parse(op);
     } catch (e) {
-      // If validation fails and it's an object, try to normalize it
+      // If validation fails, try minimal normalization
       if (op && typeof op === 'object') {
-        // Try to determine the operation type
-        let operation = 'readFile';
-        if (op.operation && ['createFile', 'updateFile', 'deleteFile', 'readFile', 'error'].includes(op.operation)) {
-          operation = op.operation;
-        } else if (op.type) {
-          // Try to map common type names to operations
-          const typeMap: Record<string, string> = {
-            'create': 'createFile',
-            'update': 'updateFile',
-            'delete': 'deleteFile',
-            'read': 'readFile',
-            'error': 'error'
-          };
-          operation = typeMap[op.type.toLowerCase()] || 'readFile';
-        }
-
-        // Normalize the location/path
-        let location = op.path || op.location || op.file || op.name || `file${index}.txt`;
-
-        // Ensure location is a string and doesn't contain any directory traversal
-        location = String(location).replace(/\.\.\//g, '').replace(/\/\//g, '/');
-
-        // Normalize content
-        let content: string | undefined;
-        if (op.content !== undefined) {
-          if (typeof op.content === 'string') {
-            content = op.content;
-          } else if (op.content && typeof op.content === 'object') {
-            try {
-              content = JSON.stringify(op.content, null, 2);
-            } catch (e) {
-              content = String(op.content);
-            }
-          } else {
-            content = String(op.content);
-          }
-        }
-
-        // Create the normalized operation
         const normalized = {
-          operation,
-          location,
-          content
+          operation: op.operation,
+          location: op.location || op.path || op.file || op.name,
+          content: op.content
         };
 
+        // Validate the normalized operation
         try {
           return fileOperationSchema.parse(normalized);
         } catch (validationError) {
-          console.warn('Failed to validate normalized operation:', {
-            original: op,
-            normalized,
-            error: validationError instanceof Error ? validationError.message : String(validationError)
-          });
-          throw new Error(`Invalid operation format at index ${index}: ${validationError instanceof Error ? validationError.message : String(validationError)}`);
+          throw new Error(
+            `Invalid operation at index ${index}: ${validationError instanceof Error ? validationError.message : String(validationError)}`
+          );
         }
       }
-
-      // If we get here, we couldn't normalize the operation
-      throw new Error(`Invalid operation format at index ${index}: Expected an object with 'operation' and 'location' properties`);
+      throw new Error(`Invalid operation at index ${index}: Expected an object with 'operation' and 'location' properties`);
     }
-  };
-
-  try {
-    // Handle array of operations
-    if (Array.isArray(parsed)) {
-      if (parsed.length === 0) {
-        throw new Error('Empty operations array');
-      }
-      return parsed.map((item, index) => {
-        try {
-          return normalizeOperation(item, index);
-        } catch (e) {
-          console.error(`Error normalizing operation at index ${index}:`, e);
-          throw e;
-        }
-      });
-    }
-
-    // Handle single operation object
-    if (parsed && typeof parsed === 'object') {
-      return [normalizeOperation(parsed, 0)];
-    }
-
-    throw new Error(`Invalid input type: ${typeof parsed}. Expected an array of operations or a single operation object`);
-  } catch (error) {
-    console.error('Error in normalizeFileOperations:', {
-      error: error instanceof Error ? error.message : String(error),
-      input: parsed
-    });
-    throw error; // Re-throw to be handled by the caller
-  }
-}
-
-// Helper function to normalize file paths
-function normalizePath(path: string): string {
-  // Replace backslashes with forward slashes and remove any leading/trailing slashes
-  return path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-}
-
-// Helper function to detect project type and get appropriate dev command
-interface DevCommandConfig {
-  command: string;
-  port: number;
-  projectType?: string; // All projects use Vite, but keep type for identification: 'vite' | 'unknown'
-}
-
-export function detectProjectTypeAndGetCommand(packageJsonContent: string): DevCommandConfig {
-  try {
-    const packageJson = JSON.parse(packageJsonContent);
-    const scripts = packageJson.scripts || {};
-    
-    // All projects use Vite - check if dev script exists
-    if (scripts['dev']) {
-      // If dev script already has vite and host/port, use it as-is
-      const devScript = scripts['dev'];
-      if (devScript.includes('vite') && devScript.includes('--host') && devScript.includes('--port')) {
-        return {
-          command: 'npm run dev',
-          port: 5175,
-          projectType: 'vite'
-        };
-      }
-      // Otherwise, override with standard Vite command
-      return {
-        command: 'npm run dev -- --host 0.0.0.0 --port 5175',
-        port: 5175,
-        projectType: 'vite'
-      };
-    }
-    
-    // If no dev script, return Vite command (project will need to be fixed, but this is safe)
-    return {
-      command: 'npm run dev -- --host 0.0.0.0 --port 5175',
-      port: 5175,
-      projectType: 'vite'
-    };
-  } catch (error) {
-    console.error('Error parsing package.json:', error);
-    // Fallback to Vite
-    return {
-      command: 'npm run dev -- --host 0.0.0.0 --port 5175',
-      port: 5175,
-      projectType: 'vite'
-    };
-  }
+  });
 }
 
 // Function to execute file operations in the sandbox
@@ -891,9 +833,12 @@ export async function generateAndUploadProjectFiles(
     const packageJson = await sandbox.files.read(`/home/user/${projectName}/package.json`);
     // console.log('Package.json:', packageJson);
 
-    // Detect project type and get appropriate dev command and port
-    const devConfig = detectProjectTypeAndGetCommand(packageJson);
-    console.log(`Detected project type - Command: ${devConfig.command}, Port: ${devConfig.port}`);
+    // All projects use Vite as base config
+    const devConfig = {
+      command: 'npm run dev',
+      port: 5175,
+      projectType: 'vite'
+    };
 
     // Get the host URL using the detected port
     const host = sandbox.getHost(devConfig.port);
@@ -979,18 +924,6 @@ export async function generateAndUploadProjectFiles(
     // }
   }
 }
-
-const ensureDirectoryExists = async (sandbox: any, dirPath: string) => {
-  try {
-    await sandbox.commands.run(`mkdir -p "${dirPath}"`);
-    console.log(`✅ Directory created/verified: ${dirPath}`);
-  } catch (error: any) {
-    if (error.code !== 'EEXIST') {
-      console.error(`❌ Error creating directory ${dirPath}:`, error);
-      throw error;
-    }
-  }
-};
 
 
 export const formatFileContent = (files: Array<{ path: string; content: string }>) => {

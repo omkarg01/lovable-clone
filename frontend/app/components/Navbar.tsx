@@ -21,6 +21,12 @@ export default function Navbar() {
     setIsLoginOpen(false);
   };
 
+  const handleSignupSuccess = (data: User) => {
+    console.log("handleSignupSuccess");
+    login(data);
+    setIsSignupOpen(false);
+  };
+
   const handleLogout = () => {
     logout();
   };
@@ -98,6 +104,7 @@ export default function Navbar() {
           setIsSignupOpen(false);
           setIsLoginOpen(true);
         }}
+        onSignupSuccess={handleSignupSuccess}
       />
 
       <LoginDialog

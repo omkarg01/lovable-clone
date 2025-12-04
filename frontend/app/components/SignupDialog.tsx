@@ -7,9 +7,10 @@ interface SignupDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSwitchToLogin: () => void;
+  onSignupSuccess: (data: User) => void;
 }
 
-export default function SignupDialog({ isOpen, onClose, onSwitchToLogin }: SignupDialogProps) {
+export default function SignupDialog({ isOpen, onClose, onSwitchToLogin, onSignupSuccess }: SignupDialogProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -47,16 +48,18 @@ export default function SignupDialog({ isOpen, onClose, onSwitchToLogin }: Signu
       }
 
       // Handle successful signup
-      // You might want to store the token in localStorage or a state management solution
-      if (data.token) {
-        localStorage.setItem('token', data.token);
+      // Transform the nested response to match User type
+      if (data.success && data.data) {
+        const userData: User = {
+          id: data.data.user.id,
+          username: data.data.user.username,
+          token: data.data.token
+        };
+        onSignupSuccess(userData);
       }
       
       // Close the dialog
       onClose();
-      
-      // Optionally, you can redirect the user or show a success message
-      // router.push('/dashboard');
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign up. Please try again.');

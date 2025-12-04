@@ -34,16 +34,17 @@ export default function ProjectPage() {
     const [sandboxStatus, setSandboxStatus] = useState<string | undefined>(undefined);
     const [isLoadingSandbox, setIsLoadingSandbox] = useState(false);
     const [sandboxError, setSandboxError] = useState<string | null>(null);
-    const [expanded, setExpanded] = useState(false);
-    const [shouldShowMore, setShouldShowMore] = useState(false);
-    const contentRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (contentRef.current) {
-            // Check if content height is more than 8rem (128px)
-            setShouldShowMore(contentRef.current.scrollHeight > 128);
-        }
-    }, [messages]);
+    // Track which messages need "Show More" button - check based on content length
+    // Approximate: 128px ≈ 6-8 lines of text, ~300-400 characters
+    const checkIfNeedsMore = (content: string): boolean => {
+        if (!content) return false;
+        // Count lines and characters
+        const lines = content.split('\n').length;
+        const chars = content.length;
+        // Lower threshold for testing: more than 4 lines or 300 characters
+        const needsMore = lines > 4 || chars > 300;
+        return needsMore;
+    };
 
     // Fetch conversations when projectId changes
     useEffect(() => {
@@ -76,7 +77,7 @@ export default function ProjectPage() {
                             ...message,
                             expanded: false
                         }
-                    })
+                    });
                 });
             } catch (error) {
                 console.error('Error fetching conversations:', error);
@@ -303,7 +304,7 @@ export default function ProjectPage() {
         const fetchProject = async () => {
             setIsLoadingSandbox(true);
             setSandboxError(null);
-            
+
             try {
                 const user = localStorage.getItem('user');
                 if (!user) return;
@@ -386,7 +387,7 @@ export default function ProjectPage() {
             if (!user) throw new Error('User not authenticated');
 
             const token = JSON.parse(user).token;
-            const response = await fetch(`${process.env.API_BASE_URL}/api/projects/${projectId}/conversations`, {
+            const response = await fetch(`${process.env.API_BASE_URL}/api/projects/${projectId}/conversation`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -402,7 +403,7 @@ export default function ProjectPage() {
             // userMessage which is use at the top of the get the last element and update the below assistantResponse
             const assistantResponse: AssistantResponse = {
                 id: Date.now().toString(),
-                content: data.response,
+                content: data.data, // Changed from data.response to data.data
                 role: 'assistant',
                 createdOn: new Date().toISOString(),
             };
@@ -432,6 +433,16 @@ export default function ProjectPage() {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
+    const handleGoBack = () => {
+        // Clear state
+        setSandboxUrl("");
+        // Clear localStorage
+        localStorage.removeItem('sandboxUrl');
+        localStorage.removeItem('projectId');
+        // Navigate back
+        router.push('/');
+    };
+
     return (
         <div className="flex h-screen bg-gray-100">
             {/* Mobile menu button */}
@@ -455,7 +466,7 @@ export default function ProjectPage() {
                 }}
             >
                 <div className="p-4 border-b border-gray-700 flex justify-between items-center">
-                    <h1 className="cursor-pointer text-xl font-bold truncate" onClick={() => router.push('/')}> {project?.name || 'Project'}</h1>
+                    <h1 className="cursor-pointer text-xl font-bold truncate" onClick={handleGoBack}> {project?.name || 'Project'}</h1>
                     <button
                         onClick={() => setIsSidebarOpen(false)}
                         className="md:hidden p-1 hover:bg-red-700 rounded"
@@ -475,24 +486,32 @@ export default function ProjectPage() {
                             <div className="max-w-auto my-1 p-4 rounded-xl shadow-md text-sm leading-relaxed bg-slate-800 border-blue-800 border-2 text-white">
                                 {/* User or assistant main message */}
                                 <div
-                                    className={`whitespace-pre-wrap overflow-hidden transition-all duration-300 ${!expanded && 'max-h-32'}`}
-                                    ref={contentRef}
+                                    className={`whitespace-pre-wrap overflow-hidden transition-all duration-300 ${message.expanded ? '' : 'max-h-32'}`}
+                                    style={message.expanded ? {} : { maxHeight: '128px' }}
                                 >
                                     {message.content}
                                 </div>
-                                {shouldShowMore && (
+                                {checkIfNeedsMore(message.content) && (
                                     <button
-                                        onClick={() => setMessages((prev) => {
-                                            const updatedMessages = [...prev];
-                                            console.log("index", index);
-                                            console.log("messages", messages);
-                                            // not the last message the message on which user clicked
-                                            console.log("message.expanded", message.expanded);
-                                            updatedMessages[index].expanded = !message.expanded;
-                                            console.log("updatedMessages", updatedMessages);
-                                            return updatedMessages;
-                                        })}
-                                        className="text-blue-400 text-xs mt-2 hover:text-blue-300 focus:outline-none"
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            console.log('Button clicked, current expanded:', message.expanded, 'message id:', message.id);
+                                            setMessages((prev) => {
+                                                const updatedMessages = prev.map((msg, idx) => {
+                                                    if (idx === index) {
+                                                        const newExpanded = !msg.expanded;
+                                                        console.log('Toggling message', msg.id, 'from', msg.expanded, 'to', newExpanded);
+                                                        return { ...msg, expanded: newExpanded };
+                                                    }
+                                                    return msg;
+                                                });
+                                                console.log('Updated messages, new expanded state:', updatedMessages[index].expanded);
+                                                return updatedMessages;
+                                            });
+                                        }}
+                                        className="text-blue-400 text-xs mt-2 hover:text-blue-300 focus:outline-none cursor-pointer"
                                     >
                                         {message.expanded ? 'Show Less' : 'Show More'}
                                     </button>
@@ -543,13 +562,19 @@ export default function ProjectPage() {
                         onSubmit={handleSendMessage}
                         className="relative"
                     >
-                        <input
-                            type="text"
+                        <textarea
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSendMessage(e);
+                                }
+                            }}
                             placeholder="Type a message..."
-                            className="w-full p-2 pr-10 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full p-2 pr-10 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none min-h-[40px] max-h-[200px] overflow-y-auto"
                             disabled={isLoading}
+                            rows={1}
                         />
                         <button
                             type="submit"
@@ -628,7 +653,7 @@ export default function ProjectPage() {
                 </div>
 
                 {/* Main content */}
-                <div className="flex-1 overflow-y-auto bg-gray-800">
+                <div className="flex-1 overflow-y-auto">
                     {activeView === 'preview' ? (
                         isLoadingSandbox ? (
                             <div className="flex flex-col items-center justify-center h-full text-gray-500">
@@ -730,6 +755,18 @@ export default function ProjectPage() {
                                                     fontSize: 14,
                                                     wordWrap: 'on',
                                                     automaticLayout: true,
+
+                                                }}
+                                                beforeMount={(monaco) => {
+                                                    // Disable all TypeScript/JavaScript validation
+                                                    monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+                                                        noSemanticValidation: true,
+                                                        noSyntaxValidation: true,
+                                                    });
+                                                    monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+                                                        noSemanticValidation: true,
+                                                        noSyntaxValidation: true,
+                                                    });
                                                 }}
                                             />
                                         </div>
