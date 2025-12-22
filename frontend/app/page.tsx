@@ -6,6 +6,7 @@ import PromptInput from './components/PromptInput';
 import Navbar from './components/Navbar';
 import { communityProjects, getRandomAuthor, getRandomAvatar, getRandomDescription, getRandomProjectImage, getRandomTags } from './const';
 import { useAuth } from './context/AuthContext';
+import { Project } from './types';
 
 export default function Home() {
   const [myProjects, setMyProjects] = useState<Project[]>([]);

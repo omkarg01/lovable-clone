@@ -7,6 +7,7 @@ import { LogOut } from 'lucide-react';
 import SignupDialog from './SignupDialog';
 import LoginDialog from './LoginDialog';
 import { useAuth } from '../context/AuthContext';
+import { User } from '../types';
 
 export default function Navbar() {
   const [isSignupOpen, setIsSignupOpen] = useState(false);

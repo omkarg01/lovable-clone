@@ -5,11 +5,13 @@ import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { MessageSquare, Menu, X, Search, Bell, Settings, User, Code as CodeIcon, Globe, Code, Folder, File, ChevronRight, ChevronDown, ThumbsUp, ThumbsDown, Copy } from 'lucide-react';
 
+import { AssistantResponse, FileType, Message } from '../../types';
 // Dynamically import Monaco Editor with SSR disabled
 const MonacoEditor = dynamic(
     () => import('@monaco-editor/react'),
     { ssr: false }
 );
+
 
 const initialFiles: FileType[] = [];
 

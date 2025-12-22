@@ -1,11 +1,11 @@
-type User = {
+export type User = {
     username: string,
     id: string,
     token: string
 };
 
 
-type Project = {
+export type Project = {
     id: string;
     title: string;
     description?: string;
@@ -16,7 +16,7 @@ type Project = {
     projectUrl?: string;
 }
 
-type FileType = {
+export type FileType = {
     id: string;
     name: string;
     type: 'file' | 'folder';
@@ -26,7 +26,7 @@ type FileType = {
 };
 
 
-type Message = {
+export type Message = {
     id: string;
     role: 'user';
     content: string;
@@ -35,7 +35,7 @@ type Message = {
     expanded?: boolean;
 };
 
-type AssistantResponse = {
+export type AssistantResponse = {
     id: string;
     role: 'assistant';
     content: string;
