@@ -15,9 +15,11 @@ export type GenerateProjectOptions = {
 const LLM_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 /** Max completion tokens for project generate/edit (OpenRouter). Override with OPENROUTER_MAX_TOKENS in .env */
-function getOpenRouterMaxTokens(): any {
-  const raw = process.env.OPENROUTER_MAX_TOKENS || 3000;
-  return raw;
+function getOpenRouterMaxTokens(): number {
+  const raw = process.env.OPENROUTER_MAX_TOKENS;
+  const n = raw !== undefined && raw !== '' ? parseInt(raw, 10) : 3000;
+  if (Number.isNaN(n) || n < 1) return 3000;
+  return Math.min(n, 32000);
 }
 
 // Function to generate a project name from a user query using LLM

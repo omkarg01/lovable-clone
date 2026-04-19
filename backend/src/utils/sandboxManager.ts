@@ -285,6 +285,7 @@ export async function getSandboxForProjectGeneration(params: {
   if (isNewProject || !existingSandboxId) {
     console.log('[SandboxManager] Fresh sandbox for generation (new project or no sandboxId)', logCtx);
     const sandbox = await Sandbox.create('f9osur8wx7gur0n4hja6', {
+      apiKey: process.env.E2B_API_KEY,
       timeoutMs: 3600000,
     });
     const host = sandbox.getHost(5175);
