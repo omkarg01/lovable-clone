@@ -4,7 +4,7 @@ import path from "path";
 const nextConfig: NextConfig = {
   env: {
     // API_BASE_URL: process.env.NEXT_PUBLIC_APP_ENV === "development" || process.env.NEXT_PUBLIC_APP_ENV === undefined ? "http://localhost:3000" : 'https://lovable-clone-bu9m.onrender.com'
-    API_BASE_URL: "http://localhost:3000"
+    API_BASE_URL: "https://lovable-clone-bu9m.onrender.com"
   },
   images: {
     remotePatterns: [
