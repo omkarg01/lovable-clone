@@ -428,10 +428,7 @@ export const createConversation = async (req: Request, res: Response) => {
             return res.status(403).json({ error: 'Forbidden' });
         }
 
-        // Check and ensure sandbox is available before modifying project
-        // Note: generateAndUploadProjectFiles will create a new sandbox, but we should
-        // try to use existing one if available. For now, we'll let it recreate and update DB after.
-        // TODO: Refactor generateAndUploadProjectFiles to accept optional sandbox parameter
+        // Reuses project.sandboxId when set (see generateAndUploadProjectFiles + getSandboxForProjectGeneration)
         if (project.sandboxId && project.sandboxStatus === 'expired') {
             console.log(`[createConversation] Project ${projectId} has expired sandbox, will be recreated during file operations`);
         }
@@ -521,8 +518,9 @@ export const createConversation = async (req: Request, res: Response) => {
                 // Use the project object we already have from the earlier query
                 const projectName = project.title || 'untitled-project';
 
-                // Call generateAndUploadProjectFiles with project name
-                const result = await generateAndUploadProjectFiles(projectId, enhancedPrompt, projectName, false);
+                const result = await generateAndUploadProjectFiles(projectId, enhancedPrompt, projectName, false, {
+                    existingSandboxId: project.sandboxId ?? undefined,
+                });
                 // const result = { success: false, files: [], error: 'File generation failed', warning: 'No files needed to be modified',  };
 
                 if (result.success) {
@@ -542,9 +540,7 @@ export const createConversation = async (req: Request, res: Response) => {
                         assistantResponse += `\n\nNote: ${result.warning}`;
                     }
 
-                    // Update sandbox info in database if new sandbox was created
-                    // Note: generateAndUploadProjectFiles creates a new sandbox each time
-                    // In the future, we should refactor to reuse existing sandbox
+                    // Update sandbox info when id/url changed (e.g. new VM after reconnect failure)
                     if (result.sandboxId && result.sandboxUrl) {
                         try {
                             await prisma.project.update({

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { MessageSquare, Menu, X, Search, Bell, Settings, User, Code as CodeIcon, Globe, Code, Folder, File, ChevronRight, ChevronDown, ThumbsUp, ThumbsDown, Copy } from 'lucide-react';
+import { MessageSquare, Menu, X, Search, Bell, Settings, User, Code as CodeIcon, Globe, Code, Folder, File, ChevronRight, ChevronDown, ThumbsUp, ThumbsDown, Copy, Sparkles } from 'lucide-react';
 
 import { AssistantResponse, FileType, Message } from '../../types';
 // Dynamically import Monaco Editor with SSR disabled
@@ -430,10 +430,10 @@ export default function ProjectPage() {
         }
     };
 
-    // ✅ 4. Auto scroll
+    // ✅ 4. Auto scroll (messages + AI loading row)
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+    }, [messages, isLoading]);
 
     const handleGoBack = () => {
         // Clear state
@@ -546,6 +546,44 @@ export default function ProjectPage() {
                             </div>
                         </div>
                     ))}
+
+                    {isLoading && (
+                        <div
+                            className="my-6 flex items-start gap-3 rounded-xl border border-violet-500/25 bg-gradient-to-br from-slate-800/95 to-slate-900/95 p-4 shadow-lg shadow-violet-950/20"
+                            aria-live="polite"
+                            aria-busy="true"
+                        >
+                            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600/40 to-cyan-600/35 ring-1 ring-white/10">
+                                <Sparkles className="relative z-10 h-5 w-5 text-cyan-200 drop-shadow-[0_0_8px_rgba(34,211,238,0.45)]" />
+                                <span
+                                    className="pointer-events-none absolute inset-0 rounded-xl border border-cyan-400/30"
+                                    style={{ animation: 'ai-generating-ring 2s ease-out infinite' }}
+                                />
+                            </div>
+                            <div className="min-w-0 flex-1 space-y-2">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-violet-200/90">
+                                    AI is generating
+                                </p>
+                                <p className="text-sm text-slate-300">
+                                    Editing files and updating your preview…
+                                </p>
+                                <div className="flex items-center gap-1.5 pt-0.5">
+                                    <span
+                                        className="h-2 w-2 rounded-full bg-cyan-400"
+                                        style={{ animation: 'ai-generating-dot 1.2s ease-in-out infinite' }}
+                                    />
+                                    <span
+                                        className="h-2 w-2 rounded-full bg-violet-400"
+                                        style={{ animation: 'ai-generating-dot 1.2s ease-in-out infinite 0.2s' }}
+                                    />
+                                    <span
+                                        className="h-2 w-2 rounded-full bg-fuchsia-400"
+                                        style={{ animation: 'ai-generating-dot 1.2s ease-in-out infinite 0.4s' }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Auto-scroll anchor */}
                     <div ref={messagesEndRef} />

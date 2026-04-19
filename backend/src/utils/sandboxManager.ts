@@ -1,5 +1,6 @@
 import { Sandbox } from '@e2b/code-interpreter';
 import { listFiles, getR2File } from './r2.js';
+import { waitUntilPreviewReady } from './waitUntilPreviewReady.js';
 import path from 'path';
 import prisma from '../lib/prisma.js';
 
@@ -128,8 +129,7 @@ export async function recreateProjectSandbox(
       envs: { SKIP_PREFLIGHT_CHECK: "true" }
     });
 
-    // Wait a bit for server to start
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await waitUntilPreviewReady(sandboxUrl);
 
     const duration = Date.now() - startTime;
     console.log(`[SandboxManager] Successfully recreated sandbox for project ${projectId}`, {
@@ -253,3 +253,72 @@ export async function getOrRecreateSandbox(
   }
 }
 
+/**
+ * Result of resolving an E2B sandbox for LLM file generation (create vs edit flows).
+ */
+export interface SandboxForGenerationResult {
+  sandbox: Sandbox;
+  sandboxId: string;
+  sandboxUrl: string;
+  /** True when we reconnected to the VM that already runs the dev server */
+  reused: boolean;
+  /** True when reconnect failed and we rebuilt from R2 via recreateProjectSandbox (dev already started there) */
+  restoredFromR2: boolean;
+}
+
+/**
+ * Picks the right sandbox for generateAndUploadProjectFiles:
+ * - New project / no stored sandboxId: new empty VM only (do not restore from R2 before the LLM writes).
+ * - Stored sandboxId: connect + quick health check; on failure, recreateProjectSandbox (R2 + dev).
+ *
+ * Callers should skip `npm install && npm run dev` when `reused || restoredFromR2`.
+ */
+export async function getSandboxForProjectGeneration(params: {
+  projectId: string;
+  projectName: string;
+  existingSandboxId?: string | null;
+  isNewProject: boolean;
+}): Promise<SandboxForGenerationResult> {
+  const { projectId, projectName, existingSandboxId, isNewProject } = params;
+  const logCtx = { projectId, projectName, op: 'getSandboxForProjectGeneration' };
+
+  if (isNewProject || !existingSandboxId) {
+    console.log('[SandboxManager] Fresh sandbox for generation (new project or no sandboxId)', logCtx);
+    const sandbox = await Sandbox.create('f9osur8wx7gur0n4hja6', {
+      timeoutMs: 3600000,
+    });
+    const host = sandbox.getHost(5175);
+    return {
+      sandbox,
+      sandboxId: sandbox.sandboxId,
+      sandboxUrl: `https://${host}`,
+      reused: false,
+      restoredFromR2: false,
+    };
+  }
+
+  try {
+    console.log('[SandboxManager] Reconnecting sandbox for generation', { ...logCtx, existingSandboxId });
+    const sandbox = await Sandbox.connect(existingSandboxId);
+    await sandbox.commands.run('echo "ok"', { timeoutMs: 5000 });
+    const host = sandbox.getHost(5175);
+    return {
+      sandbox,
+      sandboxId: existingSandboxId,
+      sandboxUrl: `https://${host}`,
+      reused: true,
+      restoredFromR2: false,
+    };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log('[SandboxManager] Reconnect failed; recreating from R2', { ...logCtx, error: message });
+    const info = await recreateProjectSandbox(projectId, projectName);
+    return {
+      sandbox: info.sandbox,
+      sandboxId: info.sandboxId,
+      sandboxUrl: info.sandboxUrl,
+      reused: false,
+      restoredFromR2: true,
+    };
+  }
+}

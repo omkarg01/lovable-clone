@@ -1,9 +1,15 @@
-import { Sandbox } from '@e2b/code-interpreter';
-import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+import type { Sandbox } from '@e2b/code-interpreter';
 import { z } from 'zod';
 import { createFile, updateFile, deleteFile, readFile } from '../../tools/index.js';
 import path from 'path';
 import { getR2File, listFiles } from './r2.js';
+import { getSandboxForProjectGeneration } from './sandboxManager.js';
+import { waitUntilPreviewReady } from './waitUntilPreviewReady.js';
+
+/** Optional sandbox reuse for follow-up edits (same VM + Vite HMR). */
+export type GenerateProjectOptions = {
+  existingSandboxId?: string | null;
+};
 
 
 const LLM_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -144,6 +150,16 @@ INSTRUCTIONS:
 
 FRAMEWORK REQUIREMENTS - ALL PROJECTS USE VITE:
 - React projects: MUST use Vite with @vitejs/plugin-react
+  - React projects: MUST use Vite with @vitejs/plugin-react
+  - REACT VERSION (MANDATORY): Use React 18 or newer ONLY. In package.json dependencies you MUST include BOTH:
+    "react": "^18.3.1" and "react-dom": "^18.3.1" (same major version). NEVER use React 16 or 17.
+  - Put "vite" and "@vitejs/plugin-react" in devDependencies with modern versions, e.g. "vite": "^5.4.0", "@vitejs/plugin-react": "^4.3.0". Do NOT put @vitejs/plugin-react in dependencies.
+  - Entry file src/main.jsx or src/main.tsx MUST use the React 18 API exactly (named import, NOT default):
+    import { createRoot } from 'react-dom/client'
+    import App from './App.jsx'   // or ./App — match your file extension
+    createRoot(document.getElementById('root')).render(<App />)
+    FORBIDDEN: import ReactDOM from 'react-dom/client' (there is no default export; Vite will fail).
+    FORBIDDEN: React 17 style ReactDOM.render from 'react-dom' if you use createRoot — pick React 18 deps + createRoot, consistently.
   - package.json scripts must include: "dev": "vite --host 0.0.0.0 --port 5175"
   - MUST include vite.config.js with the following configuration:
     import { defineConfig } from 'vite'
@@ -238,6 +254,7 @@ FRAMEWORK REQUIREMENTS - ALL PROJECTS USE VITE:
 
 CRITICAL RULES:
 - DO NOT use Create React App (react-scripts)
+- For React + Vite: NEVER output react@17 or react-dom@17 with imports from 'react-dom/client'. react-dom/client requires React 18+.
 - DO NOT use Vue CLI (@vue/cli-service)
 - DO NOT use framework-specific CLI tools that don't use Vite
 - ALL projects MUST use Vite as the build tool
@@ -730,27 +747,34 @@ export async function generateAndUploadProjectFiles(
   projectId: string,
   prompt: string,
   projectName?: string,
-  isNewProject: boolean = false
+  isNewProject: boolean = false,
+  options?: GenerateProjectOptions
 ): Promise<ProjectGenerationResult> {
   let sandbox: any = null;
 
   try {
+    const name = projectName || 'untitled-project';
+
     // If it's a new project and we have a project name, update the prompt to include it
     let processedPrompt = prompt;
     if (isNewProject && projectName) {
       processedPrompt = `Create a new project named "${projectName}" with the following requirements:\n\n${prompt}`;
     }
 
-    // Create E2B sandbox
-    sandbox = await Sandbox.create('f9osur8wx7gur0n4hja6', {
-      timeoutMs: 3600000  // 1 hour
+    const resolution = await getSandboxForProjectGeneration({
+      projectId,
+      projectName: name,
+      existingSandboxId: options?.existingSandboxId,
+      isNewProject,
     });
+    sandbox = resolution.sandbox;
+    const { reused: sandboxReused, restoredFromR2 } = resolution;
 
-    // At the start of generateAndUploadProjectFiles, before any file operations
-    console.log("projectName", projectName)
-    const projectDir = `/home/user/${projectName}`;
+    console.log('projectName', name, { sandboxReused, restoredFromR2, sandboxId: resolution.sandboxId });
+    const projectDir = `/home/user/${name}`;
     await sandbox.commands.run(`mkdir -p "${projectDir}"`);
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    const startupDelayMs = sandboxReused || restoredFromR2 ? 500 : 5000;
+    await new Promise(resolve => setTimeout(resolve, startupDelayMs));
 
     // Generate project structure using AI
     const response = await fetch(LLM_URL, {
@@ -801,7 +825,7 @@ export async function generateAndUploadProjectFiles(
     });
 
     // Execute file operations
-    const { files, errors } = await executeFileOperations(filteredOperations, projectId, projectName, sandbox);
+    const { files, errors } = await executeFileOperations(filteredOperations, projectId, name, sandbox);
 
     // After file operations, add a small delay
     await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
@@ -830,7 +854,7 @@ export async function generateAndUploadProjectFiles(
     // console.log('📁 Sandbox files:', allFiles);
 
     // Read package.json to detect project type
-    const packageJson = await sandbox.files.read(`/home/user/${projectName}/package.json`);
+    const packageJson = await sandbox.files.read(`/home/user/${name}/package.json`);
     // console.log('Package.json:', packageJson);
 
     // All projects use Vite as base config
@@ -855,22 +879,27 @@ export async function generateAndUploadProjectFiles(
     // All projects use Vite, which handles host/port via command flags
     // No framework-specific environment variables needed
 
-    // Run the appropriate dev command based on project type
-    const fullCommand = `cd /home/user/${projectName} && npm install && ${devConfig.command}`;
-    console.log(`Running command: ${fullCommand}`);
+    const skipNpmBootstrap = sandboxReused || restoredFromR2;
+    if (!skipNpmBootstrap) {
+      const fullCommand = `cd /home/user/${name} && npm install && ${devConfig.command}`;
+      console.log(`Running command: ${fullCommand}`);
 
-    const result = await sandbox.commands.run(fullCommand, {
-      timeoutMs: 0,
-      background: true,
-      onStdout: (data: any) => {
-        console.log('stdout:', data);
-      },
-      onStderr: (data: any) => {
-        console.error('stderr:', data);
-      },
-      env: envVars
-    });
-    // console.log("Sandbox result:", result)
+      await sandbox.commands.run(fullCommand, {
+        timeoutMs: 0,
+        background: true,
+        onStdout: (data: any) => {
+          console.log('stdout:', data);
+        },
+        onStderr: (data: any) => {
+          console.error('stderr:', data);
+        },
+        env: envVars
+      });
+
+      await waitUntilPreviewReady(sandboxUrl);
+    } else {
+      console.log('[generateAndUploadProjectFiles] Skipping npm install / dev (reused or R2-restored sandbox; Vite already running)');
+    }
 
     // const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
