@@ -1,5 +1,9 @@
 # Lovable Clone ([Link](https://lovable-clone-bu9m.onrender.com/))
 
+## Architecture
+<img width="2048" height="1116" alt="1aa13ff8-8eb6-4322-be41-1a45444023de" src="https://github.com/user-attachments/assets/518d483c-cad8-44ea-bd91-58e89ede6aa1" />
+
+
 An AI-powered web application builder that allows users to create apps and websites by chatting with AI. This full-stack application combines a Next.js frontend with an Express.js backend to provide an interactive coding experience powered by AI.
 
 ## 🚀 Features
