@@ -1,5 +1,10 @@
 # Lovable Clone ([Link](https://lovable-clone-bu9m.onrender.com/))
 
+## User Creds
+
+- Username: omkarg
+- Password: Omk@rg01
+  
 ## Architecture
 <img width="1593" height="987" alt="29c1a55a-707b-4160-b8bf-fc16fae552b8" src="https://github.com/user-attachments/assets/9d37fa8a-bf96-44fc-9a07-f7324e2300cd" />
 
@@ -70,11 +75,6 @@ lovable-clone/
 - **Cloudflare R2** account (or AWS S3) for object storage
 - **E2B API key** for sandbox environments
 - **OpenRouter API key** (or compatible AI provider)
-
-## User Creds
-
-- Username: omkarg
-- Password: Omk@rg01
 
 ## 📦 Installation
 
