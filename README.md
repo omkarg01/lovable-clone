@@ -71,6 +71,11 @@ lovable-clone/
 - **E2B API key** for sandbox environments
 - **OpenRouter API key** (or compatible AI provider)
 
+## User Creds
+
+- Username: omkarg
+- Password: Omk@rg01
+
 ## 📦 Installation
 
 1. **Clone the repository**
