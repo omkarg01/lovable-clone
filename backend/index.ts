@@ -1,5 +1,11 @@
 import dotenv from 'dotenv';
-dotenv.config();
+// dotenv.config();
+// const __dirname = path.dirname(fileURLToPath(import.meta.url));
+if (process.env.NODE_ENV === 'development') {
+    dotenv.config();
+} else {
+    dotenv.config({ path: '/etc/secrets/env.text' });
+}
 import express from "express";
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { streamText } from 'ai';
