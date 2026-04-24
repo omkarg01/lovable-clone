@@ -11,8 +11,9 @@ const __dirname = path.dirname(__filename);
 // dotenv.config({ path: path.join(__dirname, 'backend', '.env') });
 
 const app = express();
-console.log("CLOUDFLARE_BUCKET:", process.env.CLOUDFLARE_BUCKET);
 
+console.log("CLOUDFLARE_BUCKET:", process.env.CLOUDFLARE_BUCKET);
+console.log("E2B_API_KEY:", process.env.E2B_API_KEY);
 const port = process.env.PORT || 3000;
 
 // ----------------------------
